@@ -1,0 +1,8 @@
+ID|Nombre|Departamento|Salario|Años_Experiencia
+1|Ana|Ventas|35000|4
+2|Luis|Marketing|32000|3
+3|Pedro|Ventas||1
+4|Maria|IT|45000|5
+5|Sofia|IT|50000|7
+6|Juan|Marketing|29000|
+7|Elena|Ventas|38000|6
