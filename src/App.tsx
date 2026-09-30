@@ -16,6 +16,44 @@ import './index.css';
 // Colors for Pie Chart
 const COLORS = ['#38bdf8', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
 
+// Correlation Helpers
+const pearsonCorrelation = (x: number[], y: number[]) => {
+  const n = x.length;
+  if (n === 0) return 0;
+  const sumX = x.reduce((a, b) => a + b, 0);
+  const sumY = y.reduce((a, b) => a + b, 0);
+  const sumX2 = x.reduce((a, b) => a + b * b, 0);
+  const sumY2 = y.reduce((a, b) => a + b * b, 0);
+  const sumXY = x.reduce((a, b, i) => a + b * y[i], 0);
+
+  const numerator = (n * sumXY) - (sumX * sumY);
+  const denominator = Math.sqrt((n * sumX2 - sumX * sumX) * (n * sumY2 - sumY * sumY));
+  return denominator === 0 ? 0 : numerator / denominator;
+};
+
+const getRanks = (arr: number[]) => {
+  const sorted = [...arr].map((val, idx) => ({ val, idx })).sort((a, b) => a.val - b.val);
+  const ranks = new Array(arr.length);
+  for (let i = 0; i < sorted.length; i++) {
+    let j = i;
+    let sumRanks = 0;
+    while (j < sorted.length && sorted[j].val === sorted[i].val) {
+      sumRanks += j + 1;
+      j++;
+    }
+    const avgRank = sumRanks / (j - i);
+    for (let k = i; k < j; k++) {
+      ranks[sorted[k].idx] = avgRank;
+    }
+    i = j - 1;
+  }
+  return ranks;
+};
+
+const spearmanCorrelation = (x: number[], y: number[]) => {
+  return pearsonCorrelation(getRanks(x), getRanks(y));
+};
+
 function App() {
   const [data, setData] = useState<any[]>([]);
   const [originalData, setOriginalData] = useState<any[]>([]);
@@ -576,6 +614,54 @@ function App() {
                             </tr>
                           );
                         })}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div className="card col-span-12" style={{ overflowX: 'auto', marginTop: '1rem' }}>
+                    <div className="card-header">Coeficientes de Correlación (Pearson y Spearman)</div>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Variable 1</th>
+                          <th>Variable 2</th>
+                          <th>Pearson (r)</th>
+                          <th>Spearman (ρ)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                          const numCols = columns.filter(col => data.some(d => d[col] !== null && d[col] !== '' && !isNaN(Number(d[col]))));
+                          const pairs = [];
+                          for (let i = 0; i < numCols.length; i++) {
+                            for (let j = i + 1; j < numCols.length; j++) {
+                              const col1 = numCols[i];
+                              const col2 = numCols[j];
+                              
+                              const validData = data.filter(d => 
+                                d[col1] !== null && d[col1] !== '' && !isNaN(Number(d[col1])) &&
+                                d[col2] !== null && d[col2] !== '' && !isNaN(Number(d[col2]))
+                              );
+                              
+                              if (validData.length > 1) {
+                                const x = validData.map(d => Number(d[col1]));
+                                const y = validData.map(d => Number(d[col2]));
+                                const p = pearsonCorrelation(x, y);
+                                const s = spearmanCorrelation(x, y);
+                                pairs.push(
+                                  <tr key={`${col1}-${col2}`}>
+                                    <td style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{col1}</td>
+                                    <td style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{col2}</td>
+                                    <td style={{ color: p > 0.7 || p < -0.7 ? 'var(--success-color)' : 'inherit' }}>{p.toFixed(4)}</td>
+                                    <td style={{ color: s > 0.7 || s < -0.7 ? 'var(--success-color)' : 'inherit' }}>{s.toFixed(4)}</td>
+                                  </tr>
+                                );
+                              }
+                            }
+                          }
+                          if (pairs.length === 0) return <tr><td colSpan={4} style={{ textAlign: 'center' }}>No hay suficientes variables numéricas para calcular correlación.</td></tr>;
+                          return pairs;
+                        })()}
                       </tbody>
                     </table>
                   </div>

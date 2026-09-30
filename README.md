@@ -22,6 +22,7 @@ StatixPro es una potente aplicación de escritorio construida con **React, Vite 
   - Mediana
   - Desviación Estándar
   - Valor Mínimo y Máximo
+- **Análisis de Correlación:** Calcula automáticamente los coeficientes de correlación de Pearson y Spearman entre todas las variables numéricas, resaltando visualmente las relaciones fuertes.
 - **Regresión Lineal Integrada:** Calcula instantáneamente modelos de regresión lineal simple (`y = mx + b`) sobre los datos.
 - **Selector de Variables:** Elige manualmente qué variable asignar al Eje X (independiente) y al Eje Y (dependiente) para tus modelos.
 
