@@ -24,7 +24,11 @@ StatixPro es una potente aplicación de escritorio construida con **React, Vite 
   - Valor Mínimo y Máximo
 - **Análisis de Correlación y Mapa de Calor:** Calcula automáticamente los coeficientes de correlación de Pearson y Spearman entre todas las variables numéricas. Incluye un **Mapa de Calor (Heatmap) interactivo** que utiliza la escala de colores estándar científica (*coolwarm*: azul para negativo, blanco para neutro, rojo para positivo) para una visualización rápida de relaciones fuertes.
 - **Regresión Lineal Integrada:** Calcula instantáneamente modelos de regresión lineal simple (`y = mx + b`) sobre los datos.
-- **Selector de Variables:** Elige manualmente qué variable asignar al Eje X (independiente) y al Eje Y (dependiente) para tus modelos.
+- **Modelos Avanzados de Machine Learning:** Nueva sección dedicada a algoritmos predictivos:
+  - **K-Means Clustering:** Algoritmo no supervisado para encontrar patrones y agrupaciones ocultas en tus datos, con visualización gráfica interactiva de los clústeres en 2D.
+  - **Árboles de Decisión (Clasificación):** Sistema de reglas lógicas para predecir categorías o clasificaciones. Incluye un **visor interactivo vectorial D3 (SVG)** que genera un organigrama navegable en tiempo real (puedes arrastrar, hacer zoom y colapsar/expandir nodos condicionales).
+  - **Regresión Lineal Múltiple:** Modelo predictivo numérico basado en todas las variables independientes de la base de datos, generando instantáneamente la fórmula matemática predictiva con pesos y base (intercept).
+- **Selector Inteligente de Variables:** Elige manualmente qué variables asignar al modelo, con limpieza de datos al vuelo para evitar bloqueos por nulos.
 
 ### 4. Visualización Avanzada
 - **Renderizado Optimizado (Carga Diferida):** La interfaz utiliza `useDeferredValue` de React 18+ para mantener los controles de selección siempre fluidos incluso cuando se procesan y grafican miles de registros, mostrando un elegante overlay de "Actualizando Gráfico..." en segundo plano.
@@ -35,7 +39,6 @@ StatixPro es una potente aplicación de escritorio construida con **React, Vite 
 ## 💡 Ideas para Implementar a Futuro
 
 Para convertir esta aplicación en una verdadera alternativa completa a herramientas complejas de análisis de datos, se podrían implementar las siguientes funciones en versiones futuras:
-- **Modelos de Machine Learning Complejos:** Integrar librerías de regresión múltiple, árboles de decisión o clustering (K-Means).
 - **Guardado de Sesiones:** Permitir guardar el proyecto completo con los datos editados, columnas renombradas y modelos entrenados en un archivo propietario (ej. `.stx`).
 - **Gráficos Dinámicos Extra:** Boxplots (Diagramas de caja y bigotes) e Histogramas avanzados con tamaño de *bin* ajustable.
 
