@@ -156,7 +156,7 @@ function App() {
         header: true,
         dynamicTyping: true,
         skipEmptyLines: true,
-        complete: (results) => {
+        complete: (results: any) => {
           if (results.data.length > 0) {
             setData(results.data);
             setOriginalData([...results.data]);
@@ -169,7 +169,7 @@ function App() {
       };
 
       if (separator !== '') parseConfig.delimiter = separator;
-      Papa.parse(file, parseConfig);
+      Papa.parse(file as any, parseConfig as any);
     }
   };
 
