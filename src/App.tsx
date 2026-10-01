@@ -2,19 +2,30 @@ import React, { useState, useRef, useMemo, useDeferredValue } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { linearRegression, linearRegressionLine } from 'simple-statistics';
+import { kmeans } from 'ml-kmeans';
+import { DecisionTreeClassifier } from 'ml-cart';
+import MultivariateLinearRegression from 'ml-regression-multivariate-linear';
+import Tree from 'react-d3-tree';
 import {
   Line, Scatter, XAxis, YAxis, CartesianGrid, 
   Tooltip as RechartsTooltip, Legend, ResponsiveContainer, ComposedChart, Bar,
-  PieChart, Pie, Cell, Area
+  PieChart, Pie, Cell, Area, ScatterChart
 } from 'recharts';
 import { 
   BarChart3, Activity, Download, Upload, Home, 
-  FileSpreadsheet, Trash2, Eraser, Filter, Plus, X, RotateCcw
+  FileSpreadsheet, Trash2, Eraser, Filter, Plus, X, RotateCcw, Brain
 } from 'lucide-react';
 import './index.css';
 
 // Colors for Pie Chart
 const COLORS = ['#38bdf8', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#64748b'];
+
+// Utilidad para evitar colapsos SVG al graficar miles de puntos
+const getSampledData = (arr: any[], maxPoints = 2000) => {
+  if (arr.length <= maxPoints) return arr;
+  const step = Math.ceil(arr.length / maxPoints);
+  return arr.filter((_, i) => i % step === 0);
+};
 
 // Correlation Helpers
 const pearsonCorrelation = (x: number[], y: number[]) => {
@@ -73,6 +84,20 @@ function App() {
   const deferredChartType = useDeferredValue(chartType);
   const isChartPending = xAxisCol !== deferredX || yAxisCol !== deferredY || chartType !== deferredChartType;
 
+  // ML State
+  const [mlK, setMlK] = useState<number>(3);
+  const [mlX, setMlX] = useState<string>('');
+  const [mlY, setMlY] = useState<string>('');
+  const [mlResults, setMlResults] = useState<any[]>([]);
+  const [isMlRunning, setIsMlRunning] = useState(false);
+  const [mlModel, setMlModel] = useState<string>('kmeans');
+  const [dtTarget, setDtTarget] = useState<string>('');
+  const [dtDepth, setDtDepth] = useState<number>(3);
+  const [dtTree, setDtTree] = useState<any>(null);
+  
+  const [lrTarget, setLrTarget] = useState<string>('');
+  const [lrResults, setLrResults] = useState<any>(null);
+
   // Filter State
   const [filters, setFilters] = useState<{col: string, operator: string, value: string}[]>([
     { col: '', operator: '==', value: '' }
@@ -82,6 +107,18 @@ function App() {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Limpiar estados de análisis y Machine Learning al cargar un archivo nuevo
+    setMlResults([]);
+    setMlX('');
+    setMlY('');
+    setMlK(3);
+    setDtTarget('');
+    setDtTree(null);
+    setLrTarget('');
+    setLrResults(null);
+    setFilters([{ col: '', operator: '==', value: '' }]);
+    setShowHeatmap(false);
 
     if (file.name.endsWith('.json')) {
       const text = await file.text();
@@ -302,7 +339,7 @@ function App() {
     const regLine = linearRegressionLine(reg);
 
     // Create chart data with scatter points and the regression line
-    return filteredData.map(d => {
+    const allValidPoints = filteredData.map(d => {
       const x = parseFloat(d[deferredX]);
       const y = parseFloat(d[deferredY]);
       if (isNaN(x) || isNaN(y)) return null;
@@ -312,6 +349,8 @@ function App() {
         trend: regLine(x)
       };
     }).filter(Boolean);
+    
+    return getSampledData(allValidPoints, 2000);
   }, [filteredData, deferredX, deferredY]);
 
   return (
@@ -331,6 +370,9 @@ function App() {
         </div>
         <div className={`menu-item ${activeTab === 'analysis' ? 'active' : ''}`} onClick={() => setActiveTab('analysis')}>
           <BarChart3 size={20} /> <span>Estadística & Modelos</span>
+        </div>
+        <div className={`menu-item ${activeTab === 'ml' ? 'active' : ''}`} onClick={() => setActiveTab('ml')}>
+          <Brain size={20} /> <span>Machine Learning</span>
         </div>
       </div>
 
@@ -840,6 +882,430 @@ function App() {
                         </table>
                       );
                     })()}
+                  </div>
+                </>
+              )}
+              
+              {/* MACHINE LEARNING TAB */}
+              {activeTab === 'ml' && (
+                <>
+                  <div className="card col-span-12" style={{ marginBottom: '1rem' }}>
+                    <div className="card-header"><Brain size={18} /> Modelos Avanzados de Machine Learning</div>
+                    
+                    {/* Algoritmo Selector */}
+                    <div style={{ marginTop: '1rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                      <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Seleccionar Algoritmo</label>
+                      <select value={mlModel} onChange={e => { setMlModel(e.target.value); setMlResults([]); setDtTree(null); setLrResults(null); }} className="ui-select" style={{ width: '100%', maxWidth: '400px', background: 'var(--bg-secondary)', color: 'white', padding: '0.5rem', borderRadius: '5px', border: '1px solid var(--accent-color)' }}>
+                        <option value="kmeans">K-Means Clustering (No Supervisado)</option>
+                        <option value="decision_tree">Árboles de Decisión (Supervisado)</option>
+                        <option value="linear_regression">Regresión Lineal Múltiple (Supervisado)</option>
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem', marginTop: '1.5rem' }}>
+                      
+                      {/* K-MEANS */}
+                      {mlModel === 'kmeans' && (
+                        <>
+                          <div>
+                        <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'var(--accent-color)' }}>1. K-Means Clustering</h3>
+                        <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                          Encuentra grupos y patrones ocultos en tus datos dividiéndolos en clusters basados en su similitud.
+                        </p>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.5rem', alignItems: 'end' }}>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Eje X (Variable 1)</label>
+                            <select value={mlX} onChange={e => setMlX(e.target.value)} className="ui-select" style={{ width: '100%', background: 'var(--bg-secondary)', color: 'white', padding: '0.5rem', borderRadius: '5px', border: '1px solid var(--border-color)' }}>
+                              <option value="">-- Seleccionar --</option>
+                              {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Eje Y (Variable 2)</label>
+                            <select value={mlY} onChange={e => setMlY(e.target.value)} className="ui-select" style={{ width: '100%', background: 'var(--bg-secondary)', color: 'white', padding: '0.5rem', borderRadius: '5px', border: '1px solid var(--border-color)' }}>
+                              <option value="">-- Seleccionar --</option>
+                              {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Número de Clusters (K)</label>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(15, 23, 42, 0.4)', padding: '0.5rem', borderRadius: '5px', border: '1px solid var(--border-color)' }}>
+                              <button 
+                                className="btn btn-outline" 
+                                onClick={() => setMlK(Math.max(2, mlK - 1))}
+                                disabled={mlK <= 2}
+                                style={{ padding: '0.25rem 1rem', fontSize: '1.2rem', flex: 1 }}
+                              >-</button>
+                              <span style={{ flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '1.2rem', color: 'var(--accent-color)' }}>{mlK}</span>
+                              <button 
+                                className="btn btn-outline" 
+                                onClick={() => setMlK(Math.min(10, mlK + 1))}
+                                disabled={mlK >= 10}
+                                style={{ padding: '0.25rem 1rem', fontSize: '1.2rem', flex: 1 }}
+                              >+</button>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <button 
+                          className="btn" 
+                          disabled={!mlX || !mlY || isMlRunning}
+                          onClick={() => {
+                            if (!mlX || !mlY) return;
+                            setIsMlRunning(true);
+                            // Pequeño timeout para permitir que la UI se actualice a "Cargando..." si fuera necesario
+                            setTimeout(() => {
+                              const validData = filteredData
+                                .filter(d => d[mlX] !== null && d[mlX] !== '' && !isNaN(Number(d[mlX])))
+                                .filter(d => d[mlY] !== null && d[mlY] !== '' && !isNaN(Number(d[mlY])))
+                                .map(d => [Number(d[mlX]), Number(d[mlY])]);
+                              
+                              if (validData.length >= mlK) {
+                                try {
+                                  const result = kmeans(validData, mlK, { maxIterations: 100 });
+                                  const formattedResults = validData.map((d, i) => ({
+                                    x: d[0],
+                                    y: d[1],
+                                    cluster: result.clusters[i]
+                                  }));
+                                  setMlResults(formattedResults);
+                                } catch (e) {
+                                  console.error(e);
+                                }
+                              }
+                              setIsMlRunning(false);
+                            }, 100);
+                          }}
+                          style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', fontSize: '1.05rem' }}
+                        >
+                          <Brain size={20} /> {isMlRunning ? 'Entrenando...' : 'Entrenar Modelo K-Means'}
+                        </button>
+                      </div>
+
+                      {/* Visualization Panel */}
+                      <div style={{ height: '500px', background: 'rgba(15, 23, 42, 0.4)', borderRadius: '8px', padding: '1rem', border: '1px solid var(--border-color)' }}>
+                        {mlResults.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <ScatterChart margin={{ top: 20, right: 40, bottom: 20, left: 20 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                              <XAxis type="number" dataKey="x" name={mlX} stroke="#94a3b8" height={60} label={{ value: mlX, position: 'insideBottom', offset: -10, fill: '#94a3b8' }} />
+                              <YAxis type="number" dataKey="y" name={mlY} stroke="#94a3b8" width={100} label={{ value: mlY, angle: -90, position: 'insideLeft', offset: 10, fill: '#94a3b8', style: { textAnchor: 'middle' } }} />
+                              <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                              {(() => {
+                                const sampledResults = getSampledData(mlResults);
+                                const uniqueClusters = Array.from(new Set(mlResults.map(d => d.cluster))).sort((a, b) => a - b);
+                                return uniqueClusters.map((clusterId) => (
+                                  <Scatter 
+                                    key={`cluster-${clusterId}`} 
+                                    name={`Cluster ${clusterId + 1}`} 
+                                    data={sampledResults.filter((d: any) => d.cluster === clusterId)} 
+                                    fill={COLORS[clusterId % COLORS.length]} 
+                                  />
+                                ));
+                              })()}
+                              <Legend verticalAlign="top" height={36}/>
+                            </ScatterChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textAlign: 'center', flexDirection: 'column', gap: '1rem' }}>
+                            <Brain size={48} style={{ opacity: 0.2 }} />
+                            <p>Configura las variables y pulsa <b>Entrenar Modelo</b><br/>para visualizar los clusters generados.</p>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  {/* DECISION TREE */}
+                      {mlModel === 'decision_tree' && (
+                        <>
+                          <div>
+                            <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: '#8b5cf6' }}>2. Árboles de Decisión (Clasificación)</h3>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                              Predice categorías (Variable Objetivo) creando reglas lógicas simples basadas en el resto de variables numéricas.
+                            </p>
+                            
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginBottom: '1.5rem', alignItems: 'end' }}>
+                              <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Variable Objetivo (Clase a predecir)</label>
+                                <select value={dtTarget} onChange={e => setDtTarget(e.target.value)} className="ui-select" style={{ width: '100%', background: 'var(--bg-secondary)', color: 'white', padding: '0.5rem', borderRadius: '5px', border: '1px solid var(--border-color)' }}>
+                                  <option value="">-- Seleccionar --</option>
+                                  {columns.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                              </div>
+                              <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Profundidad Máxima del Árbol</label>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(15, 23, 42, 0.4)', padding: '0.5rem', borderRadius: '5px', border: '1px solid var(--border-color)' }}>
+                                  <button className="btn btn-outline" onClick={() => setDtDepth(Math.max(1, dtDepth - 1))} disabled={dtDepth <= 1} style={{ padding: '0.25rem 1rem', fontSize: '1.2rem', flex: 1, borderColor: '#8b5cf6', color: '#8b5cf6' }}>-</button>
+                                  <span style={{ flex: 1, textAlign: 'center', fontWeight: 'bold', fontSize: '1.2rem', color: '#8b5cf6' }}>{dtDepth}</span>
+                                  <button className="btn btn-outline" onClick={() => setDtDepth(Math.min(10, dtDepth + 1))} disabled={dtDepth >= 10} style={{ padding: '0.25rem 1rem', fontSize: '1.2rem', flex: 1, borderColor: '#8b5cf6', color: '#8b5cf6' }}>+</button>
+                                </div>
+                              </div>
+                            </div>
+                            
+                              <button 
+                                className="btn" 
+                                disabled={!dtTarget || isMlRunning}
+                                onClick={() => {
+                                  if (!dtTarget) return;
+                                  setIsMlRunning(true);
+                                  setTimeout(() => {
+                                    try {
+                                    const validData = filteredData.filter(d => d[dtTarget] !== null && d[dtTarget] !== '');
+                                    const featureCols = columns.filter(c => c !== dtTarget && validData.some(d => !isNaN(Number(d[c]))));
+                                    
+                                    if (validData.length > 0 && featureCols.length > 0) {
+                                      const t0 = performance.now();
+                                      
+                                      // Para evitar congelaciones > 1s, limitamos el entrenamiento a una muestra estratificada rápida
+                                      const sampleLimit = 5000;
+                                      const trainData = getSampledData(validData, sampleLimit);
+                                      
+                                      const X = trainData.map(d => featureCols.map(c => Number(d[c]) || 0));
+                                      const yRaw = trainData.map(d => String(d[dtTarget]));
+                                      const uniqueClasses = Array.from(new Set(yRaw));
+                                      const y = yRaw.map(label => uniqueClasses.indexOf(label));
+                                      
+                                      const classifier = new DecisionTreeClassifier({ maxDepth: dtDepth, gainFunction: 'gini', minNumSamples: 2 });
+                                      classifier.train(X, y);
+                                      
+                                      const t1 = performance.now();
+                                      
+                                      const cleanTree = (node: any, features: string[], classes: any[]): any => {
+                                        if (!node) return null;
+                                        const isLeaf = !node.left && !node.right;
+                                        let name = "";
+                                        let attributes: any = {};
+                                        
+                                        if (node.distribution) {
+                                          try {
+                                            let dist = node.distribution;
+                                            if (dist && dist.data) dist = dist.data;
+                                            if (dist && typeof dist.length === 'number') dist = Array.from(dist);
+                                            if (Array.isArray(dist) && dist.length > 0 && typeof dist[0] === 'object' && dist[0] !== null && typeof dist[0].length === 'number') {
+                                              dist = Array.from(dist[0]);
+                                            }
+                                            
+                                            if (Array.isArray(dist)) {
+                                              const maxVal = Math.max(...dist);
+                                              const maxIdx = dist.indexOf(maxVal);
+                                              const className = classes[maxIdx] !== undefined ? classes[maxIdx] : `Clase #${maxIdx}`;
+                                              attributes["Predicción"] = `${className} (${Math.round(maxVal * 100)}%)`;
+                                            } else if (typeof dist === 'object' && dist !== null) {
+                                              const entries = Object.entries(dist);
+                                              let maxKey = entries[0][0];
+                                              let maxVal = entries[0][1] as number;
+                                              for (let [k, v] of entries) {
+                                                if (typeof v === 'number' && v > maxVal) { maxVal = v; maxKey = k; }
+                                              }
+                                              const classId = parseInt(maxKey, 10);
+                                              const className = (!isNaN(classId) && classes[classId] !== undefined) ? classes[classId] : maxKey;
+                                              attributes["Predicción"] = `${className} (${Math.round(maxVal * 100)}%)`;
+                                            }
+                                          } catch (e) {
+                                            attributes["Predicción"] = "Hoja";
+                                          }
+                                        }
+                                        
+                                        if (isLeaf) {
+                                          name = "Nodo Final";
+                                        } else {
+                                          name = features[node.splitColumn] || `Columna ${node.splitColumn}`;
+                                          if (node.splitValue !== undefined) {
+                                            attributes["Condición"] = `< ${node.splitValue.toFixed(2)}`;
+                                          }
+                                        }
+                                        
+                                        const children = [];
+                                        if (node.left) {
+                                          const leftChild = cleanTree(node.left, features, classes);
+                                          if (leftChild) children.push({ ...leftChild, name: `[✓ Sí] ${leftChild.name}` });
+                                        }
+                                        if (node.right) {
+                                          const rightChild = cleanTree(node.right, features, classes);
+                                          if (rightChild) children.push({ ...rightChild, name: `[✗ No] ${rightChild.name}` });
+                                        }
+                                        
+                                        const result: any = { name };
+                                        if (Object.keys(attributes).length > 0) result.attributes = attributes;
+                                        if (children.length > 0) result.children = children;
+                                        return result;
+                                      };
+                                      
+                                      const rawTree = classifier.toJSON();
+                                      const displayTree = cleanTree(rawTree.root, featureCols, uniqueClasses);
+
+                                      setDtTree({ 
+                                        model: displayTree, 
+                                        features: featureCols, 
+                                        target: dtTarget,
+                                        timeMs: (t1 - t0).toFixed(1),
+                                        sampleSize: trainData.length,
+                                        totalSize: validData.length
+                                      });
+                                    }
+                                  } catch (e) {
+                                    console.error("Error entrenando arbol:", e);
+                                  }
+                                  setIsMlRunning(false);
+                                }, 100);
+                              }}
+                              style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', fontSize: '1.05rem', backgroundColor: '#8b5cf6', color: 'white' }}
+                            >
+                              <Brain size={20} /> {isMlRunning ? 'Entrenando...' : 'Entrenar Árbol de Decisión'}
+                            </button>
+                          </div>
+
+                          <div style={{ background: 'rgba(15, 23, 42, 0.4)', borderRadius: '8px', padding: '1.5rem', border: '1px solid var(--border-color)', minHeight: '300px' }}>
+                            {dtTree ? (
+                              <div style={{ whiteSpace: 'pre-wrap', overflowX: 'auto', fontSize: '0.9rem' }}>
+                                <h4 style={{ color: 'var(--success-color)', marginBottom: '1rem', fontSize: '1.2rem' }}>Modelo Entrenado con Éxito</h4>
+                                <div style={{ display: 'flex', gap: '2rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                                  <p style={{ color: 'var(--text-primary)', margin: 0 }}><strong>Target:</strong> {dtTree.target}</p>
+                                  <p style={{ color: 'var(--text-primary)', margin: 0 }}><strong>Muestra Analizada:</strong> {dtTree.sampleSize} / {dtTree.totalSize} filas</p>
+                                  <p style={{ color: 'var(--text-primary)', margin: 0 }}><strong>Tiempo Computación:</strong> {dtTree.timeMs}ms</p>
+                                </div>
+                                <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}><strong>Características (X):</strong> {dtTree.features.join(', ')}</p>
+                                <div style={{ height: '500px', width: '100%', background: '#0f172a', borderRadius: '8px', border: '1px solid #334155', position: 'relative' }}>
+                                  <style>{`
+                                    .rd3t-link { stroke: #64748b !important; stroke-width: 2px !important; }
+                                  `}</style>
+                                  <Tree 
+                                    data={dtTree.model} 
+                                    orientation="vertical"
+                                    pathFunc="step"
+                                    translate={{ x: 300, y: 50 }}
+                                    nodeSize={{ x: 350, y: 150 }}
+                                    renderCustomNodeElement={({ nodeDatum, toggleNode }: any) => (
+                                      <g>
+                                        <circle r="16" fill={nodeDatum.children ? "#8b5cf6" : "#10b981"} stroke="#0f172a" strokeWidth="3" onClick={toggleNode} style={{ cursor: 'pointer' }} />
+                                        <foreignObject x="24" y="-12" width="300" height="100" style={{ pointerEvents: 'none' }}>
+                                          <div style={{ color: '#f8fafc', fontFamily: 'system-ui, sans-serif', textAlign: 'left' }}>
+                                            <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '2px' }}>
+                                              {nodeDatum.name}
+                                            </div>
+                                            {nodeDatum.attributes && Object.entries(nodeDatum.attributes).map(([key, val]) => (
+                                              <div key={key} style={{ fontSize: '12px', color: '#94a3b8' }}>
+                                                {key}: {val as React.ReactNode}
+                                              </div>
+                                            ))}
+                                          </div>
+                                        </foreignObject>
+                                      </g>
+                                    )}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textAlign: 'center', flexDirection: 'column', gap: '1rem' }}>
+                                <Brain size={48} style={{ opacity: 0.2 }} />
+                                <p>Configura la variable a predecir y entrena el modelo<br/>para visualizar la estructura lógica del Árbol.</p>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+
+                      {/* MULTIVARIATE LINEAR REGRESSION */}
+                      {mlModel === 'linear_regression' && (
+                        <>
+                          <div>
+                            <h3 style={{ fontSize: '1.2rem', marginBottom: '0.5rem', color: 'var(--accent-color)' }}>3. Regresión Lineal Múltiple</h3>
+                            <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+                              Estima el valor de una variable numérica continua utilizando todas las demás variables numéricas disponibles en la base de datos.
+                            </p>
+                            
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(1, 1fr)', gap: '1rem', marginBottom: '1.5rem', alignItems: 'end' }}>
+                              <div>
+                                <label style={{ display: 'block', marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Variable Objetivo (Número a predecir)</label>
+                                <select value={lrTarget} onChange={e => setLrTarget(e.target.value)} className="ui-select" style={{ width: '100%', maxWidth: '400px', background: 'var(--bg-secondary)', color: 'white', padding: '0.5rem', borderRadius: '5px', border: '1px solid var(--border-color)' }}>
+                                  <option value="">-- Seleccionar --</option>
+                                  {columns.filter(c => originalData.some(d => !isNaN(Number(d[c])))).map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                            
+                            <button 
+                              className="btn" 
+                              disabled={!lrTarget || isMlRunning}
+                              onClick={() => {
+                                if (!lrTarget) return;
+                                setIsMlRunning(true);
+                                setTimeout(() => {
+                                  try {
+                                    const validData = filteredData.filter(d => d[lrTarget] !== null && d[lrTarget] !== '' && !isNaN(Number(d[lrTarget])));
+                                    const featureCols = columns.filter(c => c !== lrTarget && validData.some(d => !isNaN(Number(d[c]))));
+                                    
+                                    if (validData.length > 0 && featureCols.length > 0) {
+                                      const t0 = performance.now();
+                                      
+                                      const X = validData.map(d => featureCols.map(c => Number(d[c]) || 0));
+                                      const y = validData.map(d => [Number(d[lrTarget])]);
+                                      
+                                      const mlr = new MultivariateLinearRegression(X, y);
+                                      const t1 = performance.now();
+                                      
+                                      const weightsArray = mlr.weights.map((w: any) => w[0]);
+                                      // The last weight is the intercept in ml-regression-multivariate-linear
+                                      const intercept = weightsArray[weightsArray.length - 1];
+                                      const coefficients = weightsArray.slice(0, weightsArray.length - 1);
+                                      
+                                      setLrResults({ 
+                                        target: lrTarget,
+                                        features: featureCols,
+                                        coefficients,
+                                        intercept,
+                                        timeMs: (t1 - t0).toFixed(1),
+                                        sampleSize: validData.length
+                                      });
+                                    }
+                                  } catch (e) {
+                                    console.error("Error en regresion:", e);
+                                  }
+                                  setIsMlRunning(false);
+                                }, 100);
+                              }}
+                              style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', fontSize: '1.05rem', backgroundColor: '#ec4899', color: 'white' }}
+                            >
+                              <Brain size={20} /> {isMlRunning ? 'Entrenando...' : 'Calcular Regresión Lineal'}
+                            </button>
+                          </div>
+
+                          <div style={{ background: 'rgba(15, 23, 42, 0.4)', borderRadius: '8px', padding: '1.5rem', border: '1px solid var(--border-color)', minHeight: '300px', marginTop: '1.5rem' }}>
+                            {lrResults ? (
+                              <div>
+                                <h4 style={{ color: '#ec4899', marginBottom: '1rem', fontSize: '1.2rem' }}>Modelo de Regresión Calculado</h4>
+                                <div style={{ display: 'flex', gap: '2rem', marginBottom: '1.5rem', flexWrap: 'wrap' }}>
+                                  <p style={{ margin: 0, color: 'var(--text-primary)' }}><strong>Target:</strong> {lrResults.target}</p>
+                                  <p style={{ margin: 0, color: 'var(--text-primary)' }}><strong>Muestra Analizada:</strong> {lrResults.sampleSize} filas</p>
+                                  <p style={{ margin: 0, color: 'var(--text-primary)' }}><strong>Tiempo:</strong> {lrResults.timeMs}ms</p>
+                                </div>
+                                
+                                <div style={{ background: '#0f172a', padding: '1.5rem', borderRadius: '8px', border: '1px solid #334155' }}>
+                                  <h5 style={{ color: '#94a3b8', marginBottom: '1rem' }}>Ecuación Predictiva (Fórmula Matemática):</h5>
+                                  <div style={{ fontSize: '1.1rem', lineHeight: '2.5', fontFamily: 'monospace', color: '#f8fafc' }}>
+                                    <span style={{ color: '#ec4899', fontWeight: 'bold' }}>{lrResults.target}</span> = <br/>
+                                    <span style={{ color: '#f1f5f9', fontWeight: 'bold' }}>{lrResults.intercept.toFixed(4)}</span> <span style={{ color: '#64748b' }}>(Base)</span>
+                                    {lrResults.coefficients.map((coef: number, i: number) => (
+                                      <React.Fragment key={i}>
+                                        <br/> <span style={{ color: coef >= 0 ? '#10b981' : '#ef4444', fontWeight: 'bold' }}>{coef >= 0 ? '+ ' : '- '}</span> 
+                                        {Math.abs(coef).toFixed(4)} × <span style={{ color: '#38bdf8' }}>[{lrResults.features[i]}]</span>
+                                      </React.Fragment>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', textAlign: 'center', flexDirection: 'column', gap: '1rem' }}>
+                                <Brain size={48} style={{ opacity: 0.2 }} />
+                                <p>Configura la variable a predecir y entrena el modelo<br/>para obtener la fórmula matemática exacta.</p>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </>
               )}
