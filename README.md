@@ -5,9 +5,9 @@ StatixPro es una potente aplicación de escritorio construida con **React, Vite 
 ## 🚀 Características Principales
 
 ### 1. Gestión de Datos y Formatos
-- **Múltiples Formatos Soportados:** Importa fácilmente datasets en formato `.csv`, `.txt`, `.xlsx` y `.xls`.
-- **Detección Automática:** Detección inteligente de cabeceras, columnas numéricas y separadores (con opción a selección manual para coma, tabulación, etc.).
-- **Exportación Multi-Formato:** Exporta instantáneamente el estado actual de tus datos limpios, filtrados y editados a formato **Excel (.xlsx)**, **CSV (.csv)** o Texto plano **TXT (.txt)** mediante un selector integrado en la barra de navegación superior.
+- **Múltiples Formatos Soportados:** Importa fácilmente datasets en formato `.csv`, `.txt`, `.xlsx`, `.xls`, **`.json`** y formatos genéricos **`.data`**.
+- **Detección Automática:** Detección inteligente de cabeceras, columnas numéricas y separadores (con opción a selección manual para coma, tabulación, espacio, etc.).
+- **Exportación Multi-Formato:** Exporta instantáneamente el estado actual de tus datos limpios, filtrados y editados a formato **Excel (.xlsx)**, **CSV (.csv)**, **Texto (.txt)**, **JSON (.json)** o binario genérico **(.data)** mediante un selector integrado en la barra de navegación superior.
 
 ### 2. Limpieza de Datos y Filtrado (Data Cleaning)
 - **Imputación de Datos (Data Imputation):** En lugar de solo eliminar registros, rellena automáticamente los valores nulos (`NaN`) o celdas vacías de tus variables numéricas utilizando la **Media (Promedio)** o la **Mediana** con un solo clic.
@@ -22,13 +22,14 @@ StatixPro es una potente aplicación de escritorio construida con **React, Vite 
   - Mediana
   - Desviación Estándar
   - Valor Mínimo y Máximo
-- **Análisis de Correlación:** Calcula automáticamente los coeficientes de correlación de Pearson y Spearman entre todas las variables numéricas, resaltando visualmente las relaciones fuertes.
+- **Análisis de Correlación y Mapa de Calor:** Calcula automáticamente los coeficientes de correlación de Pearson y Spearman entre todas las variables numéricas. Incluye un **Mapa de Calor (Heatmap) interactivo** que utiliza la escala de colores estándar científica (*coolwarm*: azul para negativo, blanco para neutro, rojo para positivo) para una visualización rápida de relaciones fuertes.
 - **Regresión Lineal Integrada:** Calcula instantáneamente modelos de regresión lineal simple (`y = mx + b`) sobre los datos.
 - **Selector de Variables:** Elige manualmente qué variable asignar al Eje X (independiente) y al Eje Y (dependiente) para tus modelos.
 
 ### 4. Visualización Avanzada
+- **Renderizado Optimizado (Carga Diferida):** La interfaz utiliza `useDeferredValue` de React 18+ para mantener los controles de selección siempre fluidos incluso cuando se procesan y grafican miles de registros, mostrando un elegante overlay de "Actualizando Gráfico..." en segundo plano.
 - **Gráficos Combinados (Scatter + Trend):** Visualiza la relación entre variables a través de un gráfico de dispersión (Scatter Plot) que superpone la línea de tendencia de la regresión calculada.
-- **Múltiples Formatos Gráficos:** Cambia en un clic entre gráficos de Dispersión, Barras, Líneas, Área y Circulares (Pie Charts).
+- **Gráficos Inteligentes con Conteo Automático:** Cambia en un clic entre gráficos de Dispersión, Barras, Líneas, Área y Circulares (Pie Charts). Si seleccionas variables categóricas (texto) para el Eje Y en gráficos de Barras/Líneas/Área/Circulares, el sistema **agrupa automáticamente los datos por el Eje X y realiza un conteo**, permitiendo generar gráficos de cantidad sin necesidad de procesar los datos previamente.
 - **Tooltips Interactivos:** Inspecciona los valores numéricos exactos de cada registro directamente sobre las gráficas.
 
 ## 💡 Ideas para Implementar a Futuro
