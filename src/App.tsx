@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useDeferredValue } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { linearRegression, linearRegressionLine } from 'simple-statistics';
@@ -68,16 +68,38 @@ function App() {
   const [chartType, setChartType] = useState<string>('scatter');
   const [exportFormat, setExportFormat] = useState<string>('xlsx');
 
+  const deferredX = useDeferredValue(xAxisCol);
+  const deferredY = useDeferredValue(yAxisCol);
+  const deferredChartType = useDeferredValue(chartType);
+  const isChartPending = xAxisCol !== deferredX || yAxisCol !== deferredY || chartType !== deferredChartType;
+
   // Filter State
   const [filters, setFilters] = useState<{col: string, operator: string, value: string}[]>([
     { col: '', operator: '==', value: '' }
   ]);
+  const [showHeatmap, setShowHeatmap] = useState(false);
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+    if (file.name.endsWith('.json')) {
+      const text = await file.text();
+      try {
+        const jsonData = JSON.parse(text);
+        const dataArray = Array.isArray(jsonData) ? jsonData : [jsonData];
+        if (dataArray.length > 0) {
+          setData(dataArray);
+          setOriginalData([...dataArray]);
+          const cols = Object.keys(dataArray[0] as object);
+          setColumns(cols);
+          setXAxisCol(cols[0] || '');
+          setYAxisCol(cols[1] || cols[0] || '');
+        }
+      } catch (err) {
+        console.error("Error al parsear JSON", err);
+      }
+    } else if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
       const firstSheetName = workbook.SheetNames[0];
@@ -123,9 +145,20 @@ function App() {
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
       XLSX.writeFile(workbook, "exported_data.xlsx");
+    } else if (exportFormat === 'json') {
+      const jsonString = JSON.stringify(filteredData, null, 2);
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `exported_data.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
     } else {
-      const csv = Papa.unparse(filteredData, { delimiter: exportFormat === 'csv' ? ',' : '\t' });
-      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const delimiter = (exportFormat === 'csv' || exportFormat === 'data') ? ',' : '\t';
+      const csv = Papa.unparse(filteredData, { delimiter });
+      const mimeType = exportFormat === 'data' ? 'application/octet-stream' : 'text/csv;charset=utf-8;';
+      const blob = new Blob([csv], { type: mimeType });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(blob);
       link.download = `exported_data.${exportFormat}`;
@@ -256,11 +289,11 @@ function App() {
 
   // Regression Calculation
   const regressionData = useMemo(() => {
-    if (!xAxisCol || !yAxisCol || filteredData.length === 0) return [];
+    if (!deferredX || !deferredY || filteredData.length === 0) return [];
     
     // Extract pairs of [x, y]
     const validPairs = filteredData
-      .map(d => [parseFloat(d[xAxisCol]), parseFloat(d[yAxisCol])])
+      .map(d => [parseFloat(d[deferredX]), parseFloat(d[deferredY])])
       .filter(pair => !isNaN(pair[0]) && !isNaN(pair[1]));
 
     if (validPairs.length < 2) return [];
@@ -270,8 +303,8 @@ function App() {
 
     // Create chart data with scatter points and the regression line
     return filteredData.map(d => {
-      const x = parseFloat(d[xAxisCol]);
-      const y = parseFloat(d[yAxisCol]);
+      const x = parseFloat(d[deferredX]);
+      const y = parseFloat(d[deferredY]);
       if (isNaN(x) || isNaN(y)) return null;
       return {
         x: x,
@@ -279,7 +312,7 @@ function App() {
         trend: regLine(x)
       };
     }).filter(Boolean);
-  }, [filteredData, xAxisCol, yAxisCol]);
+  }, [filteredData, deferredX, deferredY]);
 
   return (
     <div className="app-container">
@@ -320,11 +353,12 @@ function App() {
               <option value="">Auto-detectar</option>
               <option value=",">Coma (,)</option>
               <option value=";">Punto y coma (;)</option>
-              <option value="\t">Tab (TXT)</option>
+              <option value="\t">Tab (TXT/DATA)</option>
+              <option value=" ">Espacio (DATA)</option>
             </select>
             <input 
               type="file" 
-              accept=".csv, .txt, .xlsx, .xls" 
+              accept=".csv, .txt, .xlsx, .xls, .data, .json" 
               className="hidden-input" 
               ref={fileInputRef}
               onChange={handleFileUpload}
@@ -341,6 +375,8 @@ function App() {
                 <option value="xlsx">Excel</option>
                 <option value="csv">CSV</option>
                 <option value="txt">TXT</option>
+                <option value="data">Data (.data)</option>
+                <option value="json">JSON (.json)</option>
               </select>
               <button className="btn" onClick={exportData} disabled={data.length === 0} style={{ borderRadius: '0 5px 5px 0' }}>
                 <Download size={18} /> Exportar
@@ -515,57 +551,119 @@ function App() {
                     </div>
                   </div>
 
-                  <div className="card col-span-12" style={{ height: '400px', marginBottom: '1rem' }}>
+                  <div className="card col-span-12" style={{ height: '400px', marginBottom: '1rem', position: 'relative' }}>
                     <div className="card-header">Visualización de Datos</div>
-                    {regressionData.length < 2 && chartType === 'scatter' ? (
+                    
+                    {isChartPending && (
+                      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '8px' }}>
+                        <div style={{ color: '#38bdf8', fontSize: '1.25rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                          <RotateCcw size={20} className="spin" /> Actualizando Gráfico...
+                        </div>
+                      </div>
+                    )}
+
+                    {regressionData.length < 2 && deferredChartType === 'scatter' ? (
                       <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
                         Las variables seleccionadas no son completamente numéricas o no tienen suficientes datos para graficar una dispersión.
                       </div>
-                    ) : chartType === 'pie' ? (
+                    ) : deferredChartType === 'pie' ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
-                          <Pie 
-                            data={filteredData.filter(d => d[yAxisCol] !== null && !isNaN(Number(d[yAxisCol]))).slice(0, 20)} 
-                            dataKey={yAxisCol} 
-                            nameKey={xAxisCol} 
-                            cx="50%" 
-                            cy="50%" 
-                            outerRadius={130} 
-                            label 
-                          >
-                            {filteredData.map((_, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip contentStyle={{ backgroundColor: '#1e293b' }} />
-                          <Legend />
+                          {(() => {
+                            const isYNumeric = filteredData.some(d => d[deferredY] !== null && d[deferredY] !== '' && !isNaN(Number(d[deferredY])));
+                            
+                            let pieData: any[] = [];
+                            if (isYNumeric) {
+                              pieData = filteredData
+                                .filter(d => d[deferredY] !== null && d[deferredY] !== '' && !isNaN(Number(d[deferredY])))
+                                .map(d => ({ ...d, [deferredY]: Number(d[deferredY]) }))
+                                .slice(0, 15);
+                            } else {
+                              const counts = filteredData.reduce((acc, row) => {
+                                const key = String(row[deferredX] || 'N/A');
+                                acc[key] = (acc[key] || 0) + 1;
+                                return acc;
+                              }, {} as Record<string, number>);
+                              pieData = Object.entries(counts)
+                                .map(([key, count]) => ({ [deferredX]: key, [deferredY]: count }))
+                                .sort((a, b) => (b[deferredY] as number) - (a[deferredY] as number))
+                                .slice(0, 15);
+                            }
+                            
+                            if (pieData.length === 0) {
+                              return <text x="50%" y="50%" textAnchor="middle" fill="#94a3b8">No hay datos numéricos para graficar</text>;
+                            }
+
+                            return (
+                              <>
+                                <Pie 
+                                  data={pieData} 
+                                  dataKey={deferredY} 
+                                  nameKey={deferredX} 
+                                  cx="50%" 
+                                  cy="50%" 
+                                  outerRadius={120} 
+                                  label 
+                                >
+                                  {pieData.map((_, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                  ))}
+                                </Pie>
+                                <RechartsTooltip contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                                <Legend wrapperStyle={{ maxHeight: '80px', overflowY: 'auto', fontSize: '0.8rem' }} />
+                              </>
+                            );
+                          })()}
                         </PieChart>
                       </ResponsiveContainer>
                     ) : (
                       <ResponsiveContainer width="100%" height="100%">
-                        <ComposedChart data={chartType === 'scatter' ? regressionData : filteredData}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
-                          <XAxis 
-                            type={chartType === 'scatter' ? 'number' : 'category'} 
-                            dataKey={chartType === 'scatter' ? 'x' : xAxisCol} 
-                            name={xAxisCol} 
-                            stroke="#94a3b8" 
-                          />
-                          <YAxis 
-                            type={chartType === 'scatter' ? 'number' : 'number'} 
-                            dataKey={chartType === 'scatter' ? 'y' : yAxisCol} 
-                            name={yAxisCol} 
-                            stroke="#94a3b8" 
-                          />
-                          <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#1e293b' }} />
-                          <Legend />
-                          {chartType === 'scatter' && <Scatter name="Datos" dataKey="y" fill="#38bdf8" />}
-                          {chartType === 'scatter' && <Line type="monotone" dataKey="trend" name="Regresión Lineal" stroke="#10b981" dot={false} strokeWidth={2} />}
+                        {(() => {
+                          const isYNumeric = filteredData.some(d => d[deferredY] !== null && d[deferredY] !== '' && !isNaN(Number(d[deferredY])));
                           
-                          {chartType === 'bar' && <Bar name={yAxisCol} dataKey={yAxisCol} fill="#38bdf8" radius={[4, 4, 0, 0]} />}
-                          {chartType === 'line' && <Line name={yAxisCol} type="monotone" dataKey={yAxisCol} stroke="#10b981" activeDot={{ r: 8 }} />}
-                          {chartType === 'area' && <Area name={yAxisCol} type="monotone" dataKey={yAxisCol} fill="#8b5cf6" stroke="#8b5cf6" opacity={0.6} />}
-                        </ComposedChart>
+                          let finalData = filteredData;
+                          let actualYKey = deferredY;
+                          let yName = deferredY;
+
+                          if (deferredChartType !== 'scatter' && !isYNumeric) {
+                            const counts = filteredData.reduce((acc, row) => {
+                              const key = String(row[deferredX] || 'N/A');
+                              acc[key] = (acc[key] || 0) + 1;
+                              return acc;
+                            }, {} as Record<string, number>);
+                            finalData = Object.entries(counts).map(([key, count]) => ({ [deferredX]: key, _count: count }));
+                            actualYKey = '_count';
+                            yName = `Cantidad (Conteo de ${deferredY})`;
+                          } else if (isYNumeric) {
+                            finalData = filteredData.map(d => ({ ...d, [actualYKey]: d[actualYKey] !== null && d[actualYKey] !== '' ? Number(d[actualYKey]) : null }));
+                          }
+
+                          return (
+                            <ComposedChart data={deferredChartType === 'scatter' ? regressionData : finalData.slice(0, 100)}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                              <XAxis 
+                                type={deferredChartType === 'scatter' ? 'number' : 'category'} 
+                                dataKey={deferredChartType === 'scatter' ? 'x' : deferredX} 
+                                name={deferredX} 
+                                stroke="#94a3b8" 
+                              />
+                              <YAxis 
+                                type={deferredChartType === 'scatter' ? 'number' : 'number'} 
+                                dataKey={deferredChartType === 'scatter' ? 'y' : actualYKey} 
+                                name={yName} 
+                                stroke="#94a3b8" 
+                              />
+                              <RechartsTooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#1e293b', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                              <Legend />
+                              {deferredChartType === 'scatter' && <Scatter name="Datos" dataKey="y" fill="#38bdf8" />}
+                              {deferredChartType === 'scatter' && <Line type="monotone" dataKey="trend" name="Regresión Lineal" stroke="#10b981" dot={false} strokeWidth={2} />}
+                              
+                              {deferredChartType === 'bar' && <Bar name={yName} dataKey={actualYKey} fill="#38bdf8" radius={[4, 4, 0, 0]} />}
+                              {deferredChartType === 'line' && <Line name={yName} type="monotone" dataKey={actualYKey} stroke="#10b981" activeDot={{ r: 8 }} />}
+                              {deferredChartType === 'area' && <Area name={yName} type="monotone" dataKey={actualYKey} fill="#8b5cf6" stroke="#8b5cf6" opacity={0.6} />}
+                            </ComposedChart>
+                          );
+                        })()}
                       </ResponsiveContainer>
                     )}
                   </div>
@@ -619,51 +717,129 @@ function App() {
                   </div>
                   
                   <div className="card col-span-12" style={{ overflowX: 'auto', marginTop: '1rem' }}>
-                    <div className="card-header">Coeficientes de Correlación (Pearson y Spearman)</div>
-                    <table className="data-table">
-                      <thead>
-                        <tr>
-                          <th>Variable 1</th>
-                          <th>Variable 2</th>
-                          <th>Pearson (r)</th>
-                          <th>Spearman (ρ)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(() => {
-                          const numCols = columns.filter(col => data.some(d => d[col] !== null && d[col] !== '' && !isNaN(Number(d[col]))));
-                          const pairs = [];
-                          for (let i = 0; i < numCols.length; i++) {
-                            for (let j = i + 1; j < numCols.length; j++) {
-                              const col1 = numCols[i];
-                              const col2 = numCols[j];
+                    <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Coeficientes de Correlación (Pearson y Spearman)</span>
+                      <button className="btn btn-outline" onClick={() => setShowHeatmap(!showHeatmap)} style={{ padding: '0.25rem 0.5rem', fontSize: '0.8rem' }}>
+                        {showHeatmap ? 'Ver Tabla' : 'Ver Mapa de Calor'}
+                      </button>
+                    </div>
+                    {(() => {
+                      const numCols = columns.filter(col => data.some(d => d[col] !== null && d[col] !== '' && !isNaN(Number(d[col]))));
+                      if (numCols.length < 2) {
+                        return <div style={{ padding: '1rem', textAlign: 'center' }}>No hay suficientes variables numéricas para calcular correlación.</div>;
+                      }
+
+                      if (showHeatmap) {
+                        return (
+                          <div style={{ padding: '1rem', overflowX: 'auto' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: `auto repeat(${numCols.length}, minmax(60px, 1fr))`, gap: '4px' }}>
+                              <div></div>
+                              {numCols.map(c => <div key={c} style={{ textAlign: 'center', fontWeight: 600, fontSize: '0.75rem', padding: '0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={c}>{c}</div>)}
                               
-                              const validData = data.filter(d => 
-                                d[col1] !== null && d[col1] !== '' && !isNaN(Number(d[col1])) &&
-                                d[col2] !== null && d[col2] !== '' && !isNaN(Number(d[col2]))
-                              );
-                              
-                              if (validData.length > 1) {
-                                const x = validData.map(d => Number(d[col1]));
-                                const y = validData.map(d => Number(d[col2]));
-                                const p = pearsonCorrelation(x, y);
-                                const s = spearmanCorrelation(x, y);
-                                pairs.push(
-                                  <tr key={`${col1}-${col2}`}>
-                                    <td style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{col1}</td>
-                                    <td style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{col2}</td>
-                                    <td style={{ color: p > 0.7 || p < -0.7 ? 'var(--success-color)' : 'inherit' }}>{p.toFixed(4)}</td>
-                                    <td style={{ color: s > 0.7 || s < -0.7 ? 'var(--success-color)' : 'inherit' }}>{s.toFixed(4)}</td>
-                                  </tr>
-                                );
+                              {numCols.map(rowCol => (
+                                <React.Fragment key={rowCol}>
+                                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '0.5rem', fontWeight: 600, fontSize: '0.75rem' }}>{rowCol}</div>
+                                  {numCols.map(col => {
+                                    let r = 1;
+                                    if (rowCol !== col) {
+                                      const validData = data.filter(d => 
+                                        d[rowCol] !== null && d[rowCol] !== '' && !isNaN(Number(d[rowCol])) &&
+                                        d[col] !== null && d[col] !== '' && !isNaN(Number(d[col]))
+                                      );
+                                      if (validData.length > 1) {
+                                        const x = validData.map(d => Number(d[rowCol]));
+                                        const y = validData.map(d => Number(d[col]));
+                                        r = pearsonCorrelation(x, y);
+                                      } else {
+                                        r = 0;
+                                      }
+                                    }
+                                    const intensity = Math.min(1, Math.abs(r));
+                                    
+                                    // Escala de colores estilo "coolwarm" (Azul -> Blanco -> Rojo)
+                                    let bgR, bgG, bgB;
+                                    if (r >= 0) {
+                                      // De gris claro (241, 245, 249) a rojo oscuro (178, 24, 43)
+                                      bgR = Math.round(241 + (178 - 241) * intensity);
+                                      bgG = Math.round(245 + (24 - 245) * intensity);
+                                      bgB = Math.round(249 + (43 - 249) * intensity);
+                                    } else {
+                                      // De gris claro (241, 245, 249) a azul oscuro (33, 102, 172)
+                                      bgR = Math.round(241 + (33 - 241) * intensity);
+                                      bgG = Math.round(245 + (102 - 245) * intensity);
+                                      bgB = Math.round(249 + (172 - 249) * intensity);
+                                    }
+                                    const color = `rgb(${bgR}, ${bgG}, ${bgB})`;
+                                    const textColor = intensity > 0.5 ? '#ffffff' : '#0f172a';
+                                    
+                                    return (
+                                      <div key={col} style={{ 
+                                        background: color, 
+                                        color: textColor,
+                                        padding: '0.75rem 0.25rem', 
+                                        textAlign: 'center', 
+                                        borderRadius: '4px',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 600,
+                                        border: '1px solid var(--border-color)',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                      }} title={`r = ${r.toFixed(4)}`}>
+                                        {r.toFixed(2)}
+                                      </div>
+                                    );
+                                  })}
+                                </React.Fragment>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Variable 1</th>
+                              <th>Variable 2</th>
+                              <th>Pearson (r)</th>
+                              <th>Spearman (ρ)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                              const pairs = [];
+                              for (let i = 0; i < numCols.length; i++) {
+                                for (let j = i + 1; j < numCols.length; j++) {
+                                  const col1 = numCols[i];
+                                  const col2 = numCols[j];
+                                  
+                                  const validData = data.filter(d => 
+                                    d[col1] !== null && d[col1] !== '' && !isNaN(Number(d[col1])) &&
+                                    d[col2] !== null && d[col2] !== '' && !isNaN(Number(d[col2]))
+                                  );
+                                  
+                                  if (validData.length > 1) {
+                                    const x = validData.map(d => Number(d[col1]));
+                                    const y = validData.map(d => Number(d[col2]));
+                                    const p = pearsonCorrelation(x, y);
+                                    const s = spearmanCorrelation(x, y);
+                                    pairs.push(
+                                      <tr key={`${col1}-${col2}`}>
+                                        <td style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{col1}</td>
+                                        <td style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{col2}</td>
+                                        <td style={{ color: p > 0.7 || p < -0.7 ? 'var(--success-color)' : 'inherit' }}>{p.toFixed(4)}</td>
+                                        <td style={{ color: s > 0.7 || s < -0.7 ? 'var(--success-color)' : 'inherit' }}>{s.toFixed(4)}</td>
+                                      </tr>
+                                    );
+                                  }
+                                }
                               }
-                            }
-                          }
-                          if (pairs.length === 0) return <tr><td colSpan={4} style={{ textAlign: 'center' }}>No hay suficientes variables numéricas para calcular correlación.</td></tr>;
-                          return pairs;
-                        })()}
-                      </tbody>
-                    </table>
+                              return pairs;
+                            })()}
+                          </tbody>
+                        </table>
+                      );
+                    })()}
                   </div>
                 </>
               )}
