@@ -266,14 +266,10 @@ function App() {
 
   const triggerSessionInput = () => sessionFileInputRef.current?.click();
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
+  const processFile = async (file: File) => {
     // Si es un archivo de sesión Statix (.stx)
     if (file.name.toLowerCase().endsWith('.stx')) {
       await loadSessionFromFile(file);
-      event.target.value = '';
       return;
     }
 
@@ -342,6 +338,13 @@ function App() {
       if (separator !== '') parseConfig.delimiter = separator;
       Papa.parse(file as any, parseConfig as any);
     }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+    event.target.value = '';
   };
 
   const triggerFileInput = () => fileInputRef.current?.click();
@@ -619,13 +622,31 @@ function App() {
           </div>
         </div>
 
-        <div className="workspace">
+        <div 
+          className="workspace"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault();
+            const droppedFile = e.dataTransfer.files?.[0];
+            if (droppedFile) processFile(droppedFile);
+          }}
+        >
           {data.length === 0 ? (
-            <div className="empty-state">
+            <div 
+              className="empty-state"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                const droppedFile = e.dataTransfer.files?.[0];
+                if (droppedFile) processFile(droppedFile);
+              }}
+              style={{ cursor: 'pointer' }}
+              onClick={triggerFileInput}
+            >
               <Upload size={48} />
               <h3>No hay datos</h3>
-              <p>Importa un CSV, TXT o Excel para comenzar.</p>
-              <button className="btn" onClick={triggerFileInput}>Buscar Archivo</button>
+              <p>Arrastra aquí o importa un CSV, TXT, Excel o Sesión (.stx) para comenzar.</p>
+              <button className="btn" onClick={(e) => { e.stopPropagation(); triggerFileInput(); }}>Buscar Archivo</button>
             </div>
           ) : (
             <div className="dashboard-grid">

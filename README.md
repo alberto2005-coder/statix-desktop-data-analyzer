@@ -34,13 +34,24 @@ StatixPro es una potente aplicación de escritorio construida con **React, Vite 
 - **Renderizado Optimizado (Carga Diferida):** La interfaz utiliza `useDeferredValue` de React 18+ para mantener los controles de selección siempre fluidos incluso cuando se procesan y grafican miles de registros, mostrando un elegante overlay de "Actualizando Gráfico..." en segundo plano.
 - **Gráficos Combinados (Scatter + Trend):** Visualiza la relación entre variables a través de un gráfico de dispersión (Scatter Plot) que superpone la línea de tendencia de la regresión calculada.
 - **Gráficos Inteligentes con Conteo Automático:** Cambia en un clic entre gráficos de Dispersión, Barras, Líneas, Área y Circulares (Pie Charts). Si seleccionas variables categóricas (texto) para el Eje Y en gráficos de Barras/Líneas/Área/Circulares, el sistema **agrupa automáticamente los datos por el Eje X y realiza un conteo**, permitiendo generar gráficos de cantidad sin necesidad de procesar los datos previamente.
+- **Histogramas Dinámicos con *Bins* Ajustables y Curva Normal:** Permite explorar la distribución empírica de cualquier variable continua con selector dinámico de intervalos (*bins*) vía slider o entrada numérica, reglas automáticas clásicas de **Sturges** y **Scott**, cálculo de ancho de bin ($\Delta$), asimetría (skewness), y superposición de la **Campana de Gauss (Curva Normal teórica)** generada mediante su función de densidad de probabilidad.
+- **Diagramas de Caja y Bigotes (Boxplots con Tukey Whiskers):** Representación científica de resumen de 5 números (Mínimo, Q1, Mediana, Q3, Máximo, Rango Intercuartílico IQR y Media). Permite analizar la variable individualmente o **agruparla por categorías** (ej. Salario según Departamento o Ventas según Campaña), detección interactiva de valores atípicos (*outliers*), capa opcional de dispersión de puntos (*jitter*), y tabla estadística comparativa.
 - **Tooltips Interactivos:** Inspecciona los valores numéricos exactos de cada registro directamente sobre las gráficas.
+
+### 5. Guardado y Restauración de Sesiones (.stx)
+- **Formato Propietario de Sesión Statix (.stx):** Guarda tu proyecto completo en cualquier momento con un solo clic. El archivo `.stx` almacena íntegramente:
+  - El dataset actual con todas sus modificaciones (ediciones de celdas en tiempo real, columnas renombradas, columnas eliminadas, imputaciones y limpieza).
+  - El dataset original de respaldo (permitiendo restaurar en cualquier instante).
+  - Reglas de filtrado activas.
+  - Configuración de gráficos y visualizaciones.
+  - **Modelos entrenados de Machine Learning:** Clústeres de K-Means calculados, Árbol de Decisión generado y Ecuaciones de Regresión Lineal Múltiple.
+- **Carga Rápida y Arrastrar y Soltar:** Abre archivos `.stx` a través del botón dedicado "Cargar Sesión", el selector de importar o simplemente arrastrando el archivo a la aplicación para reanudar el análisis instantáneamente.
 
 ## 💡 Ideas para Implementar a Futuro
 
-Para convertir esta aplicación en una verdadera alternativa completa a herramientas complejas de análisis de datos, se podrían implementar las siguientes funciones en versiones futuras:
-- **Guardado de Sesiones:** Permitir guardar el proyecto completo con los datos editados, columnas renombradas y modelos entrenados en un archivo propietario (ej. `.stx`).
-- **Gráficos Dinámicos Extra:** Boxplots (Diagramas de caja y bigotes) e Histogramas avanzados con tamaño de *bin* ajustable.
+Para continuar expandiendo las capacidades de StatixPro, se contemplan las siguientes características:
+- **Pruebas de Hipótesis Paramétricas y No Paramétricas:** Integración de tests estadísticos (t de Student para muestras independientes/pareadas, ANOVA de un factor y prueba de Chi-cuadrado).
+- **Generación de Reportes PDF:** Exportación directa de informes analíticos completos con gráficos vectoriales y tablas descriptivas formateadas para impresión y presentaciones.
 
 ## 🛠️ Tecnologías Utilizadas
 
