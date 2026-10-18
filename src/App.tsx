@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo, useDeferredValue } from 'react';
+import React, { useState, useRef, useMemo, useDeferredValue, useEffect } from 'react';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { linearRegression, linearRegressionLine } from 'simple-statistics';
@@ -13,8 +13,11 @@ import {
 } from 'recharts';
 import { 
   BarChart3, Activity, Download, Upload, Home, 
-  FileSpreadsheet, Trash2, Eraser, Filter, Plus, X, RotateCcw, Brain
+  FileSpreadsheet, Trash2, Eraser, Filter, Plus, X, RotateCcw, Brain,
+  Save, FolderOpen, CheckCircle2, AlertCircle
 } from 'lucide-react';
+import { HistogramView } from './components/HistogramView';
+import { BoxplotView } from './components/BoxplotView';
 import './index.css';
 
 // Colors for Pie Chart
@@ -72,6 +75,10 @@ function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [separator, setSeparator] = useState(''); 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Session & Project State
+  const [currentProjectName, setCurrentProjectName] = useState<string>('proyecto_statix');
+  const [notification, setNotification] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const sessionFileInputRef = useRef<HTMLInputElement>(null);
 
   // Selector state for charts
   const [xAxisCol, setXAxisCol] = useState<string>('');
@@ -79,10 +86,23 @@ function App() {
   const [chartType, setChartType] = useState<string>('scatter');
   const [exportFormat, setExportFormat] = useState<string>('xlsx');
 
+  // Dynamic Extra Chart States
+  const [histBins, setHistBins] = useState<number>(15);
+  const [showNormalCurve, setShowNormalCurve] = useState<boolean>(true);
+  const [boxplotGroupCol, setBoxplotGroupCol] = useState<string>('');
+
   const deferredX = useDeferredValue(xAxisCol);
   const deferredY = useDeferredValue(yAxisCol);
   const deferredChartType = useDeferredValue(chartType);
   const isChartPending = xAxisCol !== deferredX || yAxisCol !== deferredY || chartType !== deferredChartType;
+
+  // Auto-dismiss notifications after 4.5 seconds
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 4500);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   // ML State
   const [mlK, setMlK] = useState<number>(3);
@@ -104,9 +124,160 @@ function App() {
   ]);
   const [showHeatmap, setShowHeatmap] = useState(false);
 
+  // Save & Load Sessions (.stx)
+  const saveSession = () => {
+    if (data.length === 0) return;
+    try {
+      const sessionData = {
+        format: 'STATIX_SESSION',
+        version: '1.0',
+        savedAt: new Date().toISOString(),
+        projectName: currentProjectName || 'proyecto_statix',
+        data,
+        originalData,
+        columns,
+        separator,
+        filters,
+        activeTab,
+        chartConfig: {
+          xAxisCol,
+          yAxisCol,
+          chartType,
+          histBins,
+          showNormalCurve,
+          boxplotGroupCol
+        },
+        mlState: {
+          mlModel,
+          mlK,
+          mlX,
+          mlY,
+          mlResults,
+          dtTarget,
+          dtDepth,
+          dtTree,
+          lrTarget,
+          lrResults
+        }
+      };
+
+      const jsonStr = JSON.stringify(sessionData, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      const safeName = (currentProjectName || 'proyecto_statix').replace(/[^a-zA-Z0-9_-]/g, '_');
+      const filename = `${safeName}_${new Date().toISOString().slice(0, 10)}.stx`;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      setNotification({
+        type: 'success',
+        message: `Proyecto guardado con éxito como "${filename}" (.stx). Se preservaron datos, filtros y modelos.`
+      });
+    } catch (err: any) {
+      console.error('Error al guardar sesión:', err);
+      setNotification({
+        type: 'error',
+        message: `Error al guardar sesión: ${err.message || 'Error desconocido'}`
+      });
+    }
+  };
+
+  const loadSessionFromFile = async (file: File) => {
+    try {
+      const text = await file.text();
+      const session = JSON.parse(text);
+
+      if (!session || (!session.data && !session.columns)) {
+        throw new Error('El archivo seleccionado no tiene un formato válido de sesión Statix (.stx).');
+      }
+
+      if (Array.isArray(session.data)) {
+        setData(session.data);
+      }
+      if (Array.isArray(session.originalData)) {
+        setOriginalData(session.originalData);
+      } else if (Array.isArray(session.data)) {
+        setOriginalData([...session.data]);
+      }
+      if (Array.isArray(session.columns)) {
+        setColumns(session.columns);
+      }
+      if (session.separator !== undefined) {
+        setSeparator(session.separator);
+      }
+      if (Array.isArray(session.filters)) {
+        setFilters(session.filters);
+      }
+      if (session.activeTab) {
+        setActiveTab(session.activeTab);
+      }
+      if (session.projectName) {
+        setCurrentProjectName(session.projectName);
+      } else {
+        setCurrentProjectName(file.name.replace(/\.stx$/i, ''));
+      }
+
+      // Restore Chart Config
+      if (session.chartConfig) {
+        if (session.chartConfig.xAxisCol) setXAxisCol(session.chartConfig.xAxisCol);
+        if (session.chartConfig.yAxisCol) setYAxisCol(session.chartConfig.yAxisCol);
+        if (session.chartConfig.chartType) setChartType(session.chartConfig.chartType);
+        if (session.chartConfig.histBins !== undefined) setHistBins(session.chartConfig.histBins);
+        if (session.chartConfig.showNormalCurve !== undefined) setShowNormalCurve(session.chartConfig.showNormalCurve);
+        if (session.chartConfig.boxplotGroupCol !== undefined) setBoxplotGroupCol(session.chartConfig.boxplotGroupCol);
+      }
+
+      // Restore ML Models
+      if (session.mlState) {
+        if (session.mlState.mlModel) setMlModel(session.mlState.mlModel);
+        if (session.mlState.mlK !== undefined) setMlK(session.mlState.mlK);
+        if (session.mlState.mlX !== undefined) setMlX(session.mlState.mlX);
+        if (session.mlState.mlY !== undefined) setMlY(session.mlState.mlY);
+        if (Array.isArray(session.mlState.mlResults)) setMlResults(session.mlState.mlResults);
+        if (session.mlState.dtTarget !== undefined) setDtTarget(session.mlState.dtTarget);
+        if (session.mlState.dtDepth !== undefined) setDtDepth(session.mlState.dtDepth);
+        if (session.mlState.dtTree !== undefined) setDtTree(session.mlState.dtTree);
+        if (session.mlState.lrTarget !== undefined) setLrTarget(session.mlState.lrTarget);
+        if (session.mlState.lrResults !== undefined) setLrResults(session.mlState.lrResults);
+      }
+
+      setNotification({
+        type: 'success',
+        message: `Sesión "${file.name}" cargada correctamente: ${session.data?.length || 0} filas, ${session.columns?.length || 0} variables y modelos restaurados.`
+      });
+    } catch (err: any) {
+      console.error('Error al cargar la sesión:', err);
+      setNotification({
+        type: 'error',
+        message: `Error al cargar la sesión: ${err.message || 'Formato corrupto o no reconocido.'}`
+      });
+    }
+  };
+
+  const handleSessionUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    loadSessionFromFile(file);
+    event.target.value = '';
+  };
+
+  const triggerSessionInput = () => sessionFileInputRef.current?.click();
+
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+
+    // Si es un archivo de sesión Statix (.stx)
+    if (file.name.toLowerCase().endsWith('.stx')) {
+      await loadSessionFromFile(file);
+      event.target.value = '';
+      return;
+    }
+
+    setCurrentProjectName(file.name.replace(/\.[^/.]+$/, ""));
 
     // Limpiar estados de análisis y Machine Learning al cargar un archivo nuevo
     setMlResults([]);
@@ -177,6 +348,10 @@ function App() {
 
   const exportData = () => {
     if (filteredData.length === 0) return;
+    if (exportFormat === 'stx') {
+      saveSession();
+      return;
+    }
     if (exportFormat === 'xlsx') {
       const worksheet = XLSX.utils.json_to_sheet(filteredData);
       const workbook = XLSX.utils.book_new();
@@ -384,7 +559,7 @@ function App() {
               {activeTab === 'dashboard' ? 'Overview' : activeTab === 'data' ? 'Data Editor' : 'Advanced Analysis'}
             </h2>
           </div>
-          <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <select 
               value={separator}
               onChange={(e) => setSeparator(e.target.value)}
@@ -400,25 +575,42 @@ function App() {
             </select>
             <input 
               type="file" 
-              accept=".csv, .txt, .xlsx, .xls, .data, .json" 
+              accept=".csv, .txt, .xlsx, .xls, .data, .json, .stx" 
               className="hidden-input" 
               ref={fileInputRef}
               onChange={handleFileUpload}
             />
-            <button className="btn btn-outline" onClick={triggerFileInput}>
+            <button className="btn btn-outline" onClick={triggerFileInput} title="Importar archivo de datos o proyecto (.stx)">
               <Upload size={18} /> Importar Datos
             </button>
+
+            {/* Session Management */}
+            <input
+              type="file"
+              accept=".stx,application/json"
+              className="hidden-input"
+              ref={sessionFileInputRef}
+              onChange={handleSessionUpload}
+            />
+            <button className="btn btn-outline" onClick={triggerSessionInput} title="Cargar sesión guardada (.stx) con todos los datos y modelos">
+              <FolderOpen size={18} /> Cargar Sesión
+            </button>
+            <button className="btn btn-outline" onClick={saveSession} disabled={data.length === 0} title="Guardar todo el proyecto con datos editados, columnas y modelos en archivo .stx">
+              <Save size={18} /> Guardar Sesión
+            </button>
+
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <select 
                 value={exportFormat}
                 onChange={(e) => setExportFormat(e.target.value)}
                 style={{ background: 'var(--bg-secondary)', color: 'white', padding: '0.5rem', borderRadius: '5px 0 0 5px', borderRight: 'none', border: '1px solid var(--accent-color)' }}
               >
-                <option value="xlsx">Excel</option>
-                <option value="csv">CSV</option>
-                <option value="txt">TXT</option>
+                <option value="xlsx">Excel (.xlsx)</option>
+                <option value="csv">CSV (.csv)</option>
+                <option value="txt">TXT (.txt)</option>
                 <option value="data">Data (.data)</option>
                 <option value="json">JSON (.json)</option>
+                <option value="stx">Sesión (.stx)</option>
               </select>
               <button className="btn" onClick={exportData} disabled={data.length === 0} style={{ borderRadius: '0 5px 5px 0' }}>
                 <Download size={18} /> Exportar
@@ -585,6 +777,8 @@ function App() {
                       <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Tipo de Gráfico</label>
                       <select value={chartType} onChange={e => setChartType(e.target.value)} style={{ background: 'var(--bg-secondary)', color: 'white', padding: '0.5rem', borderRadius: '5px' }}>
                         <option value="scatter">Dispersión y Regresión</option>
+                        <option value="histogram">Histograma Avanzado</option>
+                        <option value="boxplot">Diagrama de Caja y Bigotes (Boxplot)</option>
                         <option value="bar">Gráfico de Barras</option>
                         <option value="line">Gráfico de Líneas</option>
                         <option value="area">Gráfico de Área</option>
@@ -593,8 +787,14 @@ function App() {
                     </div>
                   </div>
 
-                  <div className="card col-span-12" style={{ height: '400px', marginBottom: '1rem', position: 'relative' }}>
-                    <div className="card-header">Visualización de Datos</div>
+                  <div className="card col-span-12" style={{ minHeight: '430px', marginBottom: '1rem', position: 'relative' }}>
+                    <div className="card-header">
+                      {deferredChartType === 'histogram'
+                        ? 'Histograma Dinámico con Intervalos (Bins) y Distribución Normal'
+                        : deferredChartType === 'boxplot'
+                        ? 'Diagrama de Caja y Bigotes (Tukey Boxplot & Outliers)'
+                        : 'Visualización de Datos'}
+                    </div>
                     
                     {isChartPending && (
                       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(15, 23, 42, 0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, borderRadius: '8px' }}>
@@ -604,7 +804,27 @@ function App() {
                       </div>
                     )}
 
-                    {regressionData.length < 2 && deferredChartType === 'scatter' ? (
+                    {deferredChartType === 'histogram' ? (
+                      <HistogramView
+                        data={filteredData}
+                        columns={columns}
+                        selectedCol={xAxisCol || columns[0] || ''}
+                        onSelectCol={setXAxisCol}
+                        bins={histBins}
+                        onChangeBins={setHistBins}
+                        showNormalCurve={showNormalCurve}
+                        onToggleNormalCurve={setShowNormalCurve}
+                      />
+                    ) : deferredChartType === 'boxplot' ? (
+                      <BoxplotView
+                        data={filteredData}
+                        columns={columns}
+                        numCol={yAxisCol || columns[0] || ''}
+                        groupCol={boxplotGroupCol}
+                        onSelectNumCol={setYAxisCol}
+                        onSelectGroupCol={setBoxplotGroupCol}
+                      />
+                    ) : regressionData.length < 2 && deferredChartType === 'scatter' ? (
                       <div style={{ display: 'flex', height: '100%', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
                         Las variables seleccionadas no son completamente numéricas o no tienen suficientes datos para graficar una dispersión.
                       </div>
@@ -1313,6 +1533,43 @@ function App() {
           )}
         </div>
       </div>
+
+      {/* Floating Toast Notification */}
+      {notification && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: '1.5rem',
+            right: '1.5rem',
+            background: 'rgba(30, 41, 59, 0.95)',
+            backdropFilter: 'blur(12px)',
+            border: `1px solid ${notification.type === 'error' ? 'var(--danger-color)' : 'var(--accent-color)'}`,
+            color: '#f8fafc',
+            padding: '0.85rem 1.25rem',
+            borderRadius: '8px',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.75rem',
+            zIndex: 9999,
+            maxWidth: '450px',
+            fontSize: '0.9rem'
+          }}
+        >
+          {notification.type === 'error' ? (
+            <AlertCircle size={20} style={{ color: 'var(--danger-color)', flexShrink: 0 }} />
+          ) : (
+            <CheckCircle2 size={20} style={{ color: 'var(--success-color)', flexShrink: 0 }} />
+          )}
+          <div style={{ flex: 1 }}>{notification.message}</div>
+          <button
+            onClick={() => setNotification(null)}
+            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '0.2rem' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
