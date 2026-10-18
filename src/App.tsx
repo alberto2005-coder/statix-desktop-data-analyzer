@@ -185,69 +185,72 @@ function App() {
     }
   };
 
+  const loadSessionFromJson = (session: any, fileName: string) => {
+    if (!session || (!session.data && !session.columns)) {
+      throw new Error('El archivo seleccionado no tiene un formato válido de sesión Statix (.stx).');
+    }
+
+    if (Array.isArray(session.data)) {
+      setData(session.data);
+    }
+    if (Array.isArray(session.originalData)) {
+      setOriginalData(session.originalData);
+    } else if (Array.isArray(session.data)) {
+      setOriginalData([...session.data]);
+    }
+    if (Array.isArray(session.columns)) {
+      setColumns(session.columns);
+    }
+    if (session.separator !== undefined) {
+      setSeparator(session.separator);
+    }
+    if (Array.isArray(session.filters)) {
+      setFilters(session.filters);
+    }
+    if (session.activeTab) {
+      setActiveTab(session.activeTab);
+    }
+    if (session.projectName) {
+      setCurrentProjectName(session.projectName);
+    } else {
+      setCurrentProjectName(fileName.replace(/\.stx$/i, ''));
+    }
+
+    // Restore Chart Config
+    if (session.chartConfig) {
+      if (session.chartConfig.xAxisCol) setXAxisCol(session.chartConfig.xAxisCol);
+      if (session.chartConfig.yAxisCol) setYAxisCol(session.chartConfig.yAxisCol);
+      if (session.chartConfig.chartType) setChartType(session.chartConfig.chartType);
+      if (session.chartConfig.histBins !== undefined) setHistBins(session.chartConfig.histBins);
+      if (session.chartConfig.showNormalCurve !== undefined) setShowNormalCurve(session.chartConfig.showNormalCurve);
+      if (session.chartConfig.boxplotGroupCol !== undefined) setBoxplotGroupCol(session.chartConfig.boxplotGroupCol);
+    }
+
+    // Restore ML Models
+    if (session.mlState) {
+      if (session.mlState.mlModel) setMlModel(session.mlState.mlModel);
+      if (session.mlState.mlK !== undefined) setMlK(session.mlState.mlK);
+      if (session.mlState.mlX !== undefined) setMlX(session.mlState.mlX);
+      if (session.mlState.mlY !== undefined) setMlY(session.mlState.mlY);
+      if (Array.isArray(session.mlState.mlResults)) setMlResults(session.mlState.mlResults);
+      if (session.mlState.dtTarget !== undefined) setDtTarget(session.mlState.dtTarget);
+      if (session.mlState.dtDepth !== undefined) setDtDepth(session.mlState.dtDepth);
+      if (session.mlState.dtTree !== undefined) setDtTree(session.mlState.dtTree);
+      if (session.mlState.lrTarget !== undefined) setLrTarget(session.mlState.lrTarget);
+      if (session.mlState.lrResults !== undefined) setLrResults(session.mlState.lrResults);
+    }
+
+    setNotification({
+      type: 'success',
+      message: `Sesión "${fileName}" cargada correctamente: ${session.data?.length || 0} filas, ${session.columns?.length || 0} variables y modelos restaurados.`
+    });
+  };
+
   const loadSessionFromFile = async (file: File) => {
     try {
       const text = await file.text();
       const session = JSON.parse(text);
-
-      if (!session || (!session.data && !session.columns)) {
-        throw new Error('El archivo seleccionado no tiene un formato válido de sesión Statix (.stx).');
-      }
-
-      if (Array.isArray(session.data)) {
-        setData(session.data);
-      }
-      if (Array.isArray(session.originalData)) {
-        setOriginalData(session.originalData);
-      } else if (Array.isArray(session.data)) {
-        setOriginalData([...session.data]);
-      }
-      if (Array.isArray(session.columns)) {
-        setColumns(session.columns);
-      }
-      if (session.separator !== undefined) {
-        setSeparator(session.separator);
-      }
-      if (Array.isArray(session.filters)) {
-        setFilters(session.filters);
-      }
-      if (session.activeTab) {
-        setActiveTab(session.activeTab);
-      }
-      if (session.projectName) {
-        setCurrentProjectName(session.projectName);
-      } else {
-        setCurrentProjectName(file.name.replace(/\.stx$/i, ''));
-      }
-
-      // Restore Chart Config
-      if (session.chartConfig) {
-        if (session.chartConfig.xAxisCol) setXAxisCol(session.chartConfig.xAxisCol);
-        if (session.chartConfig.yAxisCol) setYAxisCol(session.chartConfig.yAxisCol);
-        if (session.chartConfig.chartType) setChartType(session.chartConfig.chartType);
-        if (session.chartConfig.histBins !== undefined) setHistBins(session.chartConfig.histBins);
-        if (session.chartConfig.showNormalCurve !== undefined) setShowNormalCurve(session.chartConfig.showNormalCurve);
-        if (session.chartConfig.boxplotGroupCol !== undefined) setBoxplotGroupCol(session.chartConfig.boxplotGroupCol);
-      }
-
-      // Restore ML Models
-      if (session.mlState) {
-        if (session.mlState.mlModel) setMlModel(session.mlState.mlModel);
-        if (session.mlState.mlK !== undefined) setMlK(session.mlState.mlK);
-        if (session.mlState.mlX !== undefined) setMlX(session.mlState.mlX);
-        if (session.mlState.mlY !== undefined) setMlY(session.mlState.mlY);
-        if (Array.isArray(session.mlState.mlResults)) setMlResults(session.mlState.mlResults);
-        if (session.mlState.dtTarget !== undefined) setDtTarget(session.mlState.dtTarget);
-        if (session.mlState.dtDepth !== undefined) setDtDepth(session.mlState.dtDepth);
-        if (session.mlState.dtTree !== undefined) setDtTree(session.mlState.dtTree);
-        if (session.mlState.lrTarget !== undefined) setLrTarget(session.mlState.lrTarget);
-        if (session.mlState.lrResults !== undefined) setLrResults(session.mlState.lrResults);
-      }
-
-      setNotification({
-        type: 'success',
-        message: `Sesión "${file.name}" cargada correctamente: ${session.data?.length || 0} filas, ${session.columns?.length || 0} variables y modelos restaurados.`
-      });
+      loadSessionFromJson(session, file.name);
     } catch (err: any) {
       console.error('Error al cargar la sesión:', err);
       setNotification({
@@ -256,6 +259,40 @@ function App() {
       });
     }
   };
+
+  // Escuchar apertura directa de archivos desde el sistema operativo (doble clic en archivo .stx)
+  useEffect(() => {
+    const api = (window as any).electronAPI;
+    if (!api) return;
+
+    // Archivo inicial pasado al arrancar la app
+    api.getInitialFile?.().then((fileData: any) => {
+      if (fileData && fileData.content) {
+        try {
+          const session = JSON.parse(fileData.content);
+          loadSessionFromJson(session, fileData.fileName || 'sesion.stx');
+        } catch (e: any) {
+          console.error("Error al cargar sesión inicial:", e);
+        }
+      }
+    });
+
+    // Archivos abiertos mientras la app ya está ejecutándose
+    const unsubscribe = api.onOpenFile?.((fileData: any) => {
+      if (fileData && fileData.content) {
+        try {
+          const session = JSON.parse(fileData.content);
+          loadSessionFromJson(session, fileData.fileName || 'sesion.stx');
+        } catch (e: any) {
+          console.error("Error al cargar sesión recibida:", e);
+        }
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
 
   const handleSessionUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];

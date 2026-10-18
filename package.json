@@ -2,7 +2,7 @@
   "name": "statix-data-analyzer",
   "productName": "Statix Data Analyzer",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Desktop application for data analysis",
   "author": "Alberto",
   "type": "module",
