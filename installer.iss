@@ -1,8 +1,8 @@
-; Script de Inno Setup 7 para Statix Data Analyzer v1.1.0
+; Script de Inno Setup 7 para Statix Data Analyzer v1.1.1
 ; Diseñado para Windows 10 / 11 de 64 bits con soporte de modo oscuro e interfaz moderna
 
 #define MyAppName "Statix Data Analyzer"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.1.1"
 #define MyAppPublisher "Alberto"
 #define MyAppURL "https://github.com/alberto2005-coder/statix-desktop-data-analyzer"
 #define MyAppExeName "Statix Data Analyzer.exe"
