@@ -1,185 +1,286 @@
-# StatixPro - Data Analysis Application
+# Statix Data Analyzer
 
-StatixPro es una potente aplicación de escritorio construida con **React, Vite y Electron**, diseñada para ofrecer una experiencia fluida y profesional en el análisis de datos. Inspirada en herramientas estadísticas avanzadas como R, permite a los usuarios manipular y analizar datos rápidamente a través de una interfaz moderna y atractiva.
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Electron](https://img.shields.io/badge/Electron-44-47848F?logo=electron&logoColor=white)](https://www.electronjs.org/)
+[![GPL-3.0](https://img.shields.io/badge/Licencia-GPL--3.0-blue)](LICENSE)
 
-## 🚀 Características Principales
-
-### 1. Gestión de Datos y Formatos
-- **Múltiples Formatos Soportados:** Importa fácilmente datasets en formato `.csv`, `.txt`, `.xlsx`, `.xls`, **`.json`** y formatos genéricos **`.data`**.
-- **Detección Automática:** Detección inteligente de cabeceras, columnas numéricas y separadores (con opción a selección manual para coma, tabulación, espacio, etc.).
-- **Exportación Multi-Formato:** Exporta instantáneamente el estado actual de tus datos limpios, filtrados y editados a formato **Excel (.xlsx)**, **CSV (.csv)**, **Texto (.txt)**, **JSON (.json)** o binario genérico **(.data)** mediante un selector integrado en la barra de navegación superior.
-
-### 2. Limpieza de Datos y Filtrado (Data Cleaning)
-- **Imputación de Datos (Data Imputation):** En lugar de solo eliminar registros, rellena automáticamente los valores nulos (`NaN`) o celdas vacías de tus variables numéricas utilizando la **Media (Promedio)** o la **Mediana** con un solo clic.
-- **Eliminar Nulos:** Botón dedicado para buscar y eliminar automáticamente todas las filas que contengan valores nulos (NaN) o campos vacíos.
-- **Gestión de Columnas:** Elimina rápidamente cualquier variable o columna innecesaria de tu modelo haciendo clic en el icono de la papelera en la vista de Dataset.
-- **Filtrado Avanzado Dinámico:** Añade reglas múltiples (ej. `Edad > 30`, `Departamento contiene "Ventas"`) para filtrar tus datos numéricamente o por texto, modificando instantáneamente el dataset.
-
-### 3. Modelado y Estadística (Machine Learning)
-- **Estadística Descriptiva Automática:** Calcula y muestra automáticamente, para todas las variables numéricas, estadísticas clave:
-  - Número de valores válidos (N)
-  - Media (Promedio)
-  - Mediana
-  - Desviación Estándar
-  - Valor Mínimo y Máximo
-- **Análisis de Correlación y Mapa de Calor:** Calcula automáticamente los coeficientes de correlación de Pearson y Spearman entre todas las variables numéricas. Incluye un **Mapa de Calor (Heatmap) interactivo** que utiliza la escala de colores estándar científica (*coolwarm*: azul para negativo, blanco para neutro, rojo para positivo) para una visualización rápida de relaciones fuertes.
-- **Regresión Lineal Integrada:** Calcula instantáneamente modelos de regresión lineal simple (`y = mx + b`) sobre los datos.
-- **Modelos Avanzados de Machine Learning:** Nueva sección dedicada a algoritmos predictivos:
-  - **K-Means Clustering:** Algoritmo no supervisado para encontrar patrones y agrupaciones ocultas en tus datos, con visualización gráfica interactiva de los clústeres en 2D.
-  - **Árboles de Decisión (Clasificación):** Sistema de reglas lógicas para predecir categorías o clasificaciones. Incluye un **visor interactivo vectorial D3 (SVG)** que genera un organigrama navegable en tiempo real (puedes arrastrar, hacer zoom y colapsar/expandir nodos condicionales).
-  - **Regresión Lineal Múltiple:** Modelo predictivo numérico basado en todas las variables independientes de la base de datos, generando instantáneamente la fórmula matemática predictiva con pesos y base (intercept).
-- **Selector Inteligente de Variables:** Elige manualmente qué variables asignar al modelo, con limpieza de datos al vuelo para evitar bloqueos por nulos.
-
-### 4. Visualización Avanzada
-- **Renderizado Optimizado (Carga Diferida):** La interfaz utiliza `useDeferredValue` de React 18+ para mantener los controles de selección siempre fluidos incluso cuando se procesan y grafican miles de registros, mostrando un elegante overlay de "Actualizando Gráfico..." en segundo plano.
-- **Gráficos Combinados (Scatter + Trend):** Visualiza la relación entre variables a través de un gráfico de dispersión (Scatter Plot) que superpone la línea de tendencia de la regresión calculada.
-- **Gráficos Inteligentes con Conteo Automático:** Cambia en un clic entre gráficos de Dispersión, Barras, Líneas, Área y Circulares (Pie Charts). Si seleccionas variables categóricas (texto) para el Eje Y en gráficos de Barras/Líneas/Área/Circulares, el sistema **agrupa automáticamente los datos por el Eje X y realiza un conteo**, permitiendo generar gráficos de cantidad sin necesidad de procesar los datos previamente.
-- **Histogramas Dinámicos con *Bins* Ajustables y Curva Normal:** Permite explorar la distribución empírica de cualquier variable continua con selector dinámico de intervalos (*bins*) vía slider o entrada numérica, reglas automáticas clásicas de **Sturges** y **Scott**, cálculo de ancho de bin ($\Delta$), asimetría (skewness), y superposición de la **Campana de Gauss (Curva Normal teórica)** generada mediante su función de densidad de probabilidad.
-- **Diagramas de Caja y Bigotes (Boxplots con Tukey Whiskers):** Representación científica de resumen de 5 números (Mínimo, Q1, Mediana, Q3, Máximo, Rango Intercuartílico IQR y Media). Permite analizar la variable individualmente o **agruparla por categorías** (ej. Salario según Departamento o Ventas según Campaña), detección interactiva de valores atípicos (*outliers*), capa opcional de dispersión de puntos (*jitter*), y tabla estadística comparativa.
-- **Tooltips Interactivos:** Inspecciona los valores numéricos exactos de cada registro directamente sobre las gráficas.
-
-### 5. Guardado y Restauración de Sesiones (.stx)
-- **Formato Propietario de Sesión Statix (.stx):** Guarda tu proyecto completo en cualquier momento con un solo clic. El archivo `.stx` almacena íntegramente:
-  - El dataset actual con todas sus modificaciones (ediciones de celdas en tiempo real, columnas renombradas, columnas eliminadas, imputaciones y limpieza).
-  - El dataset original de respaldo (permitiendo restaurar en cualquier instante).
-  - Reglas de filtrado activas.
-  - Configuración de gráficos y visualizaciones.
-  - **Modelos entrenados de Machine Learning:** Clústeres de K-Means calculados, Árbol de Decisión generado y Ecuaciones de Regresión Lineal Múltiple.
-- **Carga Rápida y Arrastrar y Soltar:** Abre archivos `.stx` a través del botón dedicado "Cargar Sesión", el selector de importar o simplemente arrastrando el archivo a la aplicación para reanudar el análisis instantáneamente.
-
-## 💡 Ideas para Implementar a Futuro
-
-Para continuar expandiendo las capacidades de StatixPro, se contemplan las siguientes características:
-- **Pruebas de Hipótesis Paramétricas y No Paramétricas:** Integración de tests estadísticos (t de Student para muestras independientes/pareadas, ANOVA de un factor y prueba de Chi-cuadrado).
-- **Generación de Reportes PDF:** Exportación directa de informes analíticos completos con gráficos vectoriales y tablas descriptivas formateadas para impresión y presentaciones.
-
-## 🛠️ Tecnologías Utilizadas
-
-- **Frontend:** React, TypeScript, Vite
-- **Desktop Packaging:** Electron, Electron-Builder
-- **Visualización:** Recharts
-- **Parsing y Procesamiento:** PapaParse (CSVs), SheetJS / xlsx (Excel), Simple-Statistics (Regresiones)
-- **UI:** CSS Vanilla con diseño Glassmorphism, Lucide React (Iconos)
-
-## 📦 Desarrollo y Compilación
-
-1. **Instalación:**
-   ```bash
-   npm install
-   ```
-
-2. **Iniciar Entorno de Desarrollo:**
-   *(Inicia tanto el servidor Vite de fondo como la ventana nativa de Electron)*
-   ```bash
-   npm start
-   ```
-
-3. **Compilar para Producción (.exe):**
-   *(Prepara el binario listo para ser empaquetado por herramientas como Inno Setup)*
-   ```bash
-   npm run build:electron
-   ```
-
-## Licencia
-
-Este proyecto está bajo la **Licencia GPL-3.0**.
-Consulta el archivo `LICENSE` para más detalles.
-
-**Resumen:**
-- ✅ Uso libre, incluso con fines comerciales
-- ⚠️ Si distribuyes copias o versiones modificadas, publica su código fuente bajo la misma licencia (copyleft)
-- © Copyright (C) 2026 Alberto Ortiz
+[Español](#español) · [English](#english)
 
 ---
 
-# English Version
+## Español
 
-**StatixPro** is a powerful desktop application built with **React, Vite and Electron**, designed to deliver a smooth, professional data-analysis experience. Inspired by advanced statistical tools such as R, it lets users manipulate and analyze data quickly through a modern, attractive interface.
+### Índice
 
-## 🚀 Key Features
+- [Descripción](#descripción)
+- [Características](#características)
+- [Tecnologías](#tecnologías)
+- [Requisitos](#requisitos)
+- [Desarrollo](#desarrollo)
+- [Compilación](#compilación)
+- [Formato de sesión .stx](#formato-de-sesión-stx)
+- [Flujo de trabajo típico](#flujo-de-trabajo-típico)
+- [Límites](#límites)
+- [Roadmap](#roadmap)
+- [Licencia](#licencia)
 
-### 1. Data and Format Management
-- **Multiple Formats Supported:** Easily import datasets in `.csv`, `.txt`, `.xlsx`, `.xls`, **`.json`** and generic **`.data`** formats.
-- **Automatic Detection:** Smart detection of headers, numeric columns and separators (with a manual option for comma, tab, space, etc.).
-- **Multi-Format Export:** Instantly export the current state of your cleaned, filtered and edited data to **Excel (.xlsx)**, **CSV (.csv)**, **Text (.txt)**, **JSON (.json)** or generic binary **(.data)** using a selector built into the top navigation bar.
+### Descripción
 
-### 2. Data Cleaning and Filtering
-- **Data Imputation:** Instead of just deleting records, automatically fills null (`NaN`) values or empty cells of your numeric variables using the **Mean** or the **Median** with a single click.
-- **Remove Nulls:** A dedicated button to find and automatically delete every row containing null values (NaN) or empty fields.
-- **Column Management:** Quickly remove any unnecessary variable or column from your model by clicking the trash icon in the Dataset view.
-- **Advanced Dynamic Filtering:** Add multiple rules (e.g. `Age > 30`, `Department contains "Sales"`) to filter your data numerically or by text, modifying the dataset instantly.
+**Statix Data Analyzer** es una aplicación de escritorio para **importar, limpiar, analizar y visualizar datos** sin escribir código. Está construida con **React, TypeScript, Vite y Electron**, y combina estadística descriptiva, correlaciones, regresión y aprendizaje automático básico en una interfaz tipo *glassmorphism*.
 
-### 3. Modeling and Statistics (Machine Learning)
-- **Automatic Descriptive Statistics:** Automatically calculates and displays, for all numeric variables, key statistics:
-  - Number of valid values (N)
-  - Mean
-  - Median
-  - Standard Deviation
-  - Minimum and Maximum values
-- **Correlation Analysis and Heatmap:** Automatically computes Pearson and Spearman correlation coefficients between all numeric variables. Includes an **interactive Heatmap** using the standard scientific color scale (*coolwarm*: blue for negative, white for neutral, red for positive) for a quick view of strong relationships.
-- **Built-in Linear Regression:** Instantly computes simple linear regression models (`y = mx + b`) over the data.
-- **Advanced Machine Learning Models:** A dedicated section for predictive algorithms:
-  - **K-Means Clustering:** An unsupervised algorithm to find hidden patterns and groupings in your data, with an interactive 2D visualization of the clusters.
-  - **Decision Trees (Classification):** A logical rule system to predict categories or classifications. Includes an **interactive D3 vector viewer (SVG)** that generates a navigable flowchart in real time (you can drag, zoom and collapse/expand conditional nodes).
-  - **Multiple Linear Regression:** A numeric predictive model based on all independent variables in the database, instantly generating the predictive mathematical formula with weights and intercept.
-- **Smart Variable Selector:** Manually choose which variables to assign to the model, with on-the-fly data cleaning to avoid null-related lockups.
+Todo el procesamiento ocurre en el equipo: no hay servidor, cuentas ni envío de datos.
 
-### 4. Advanced Visualization
-- **Optimized Rendering (Deferred Loading):** The interface uses React 18+'s `useDeferredValue` to keep selection controls fluid even when thousands of records are processed and plotted, showing an elegant "Updating Chart..." overlay in the background.
-- **Combined Charts (Scatter + Trend):** Visualize the relationship between variables through a scatter plot that overlays the trend line of the computed regression.
-- **Smart Charts with Automatic Counting:** Switch with one click between Scatter, Bar, Line, Area and Pie charts. If you select categorical (text) variables for the Y axis on Bar/Line/Area/Pie charts, the system **automatically groups the data by the X axis and counts it**, letting you produce quantity charts without preprocessing the data.
-- **Dynamic Histograms with Adjustable Bins and Normal Curve:** Explore the empirical distribution of any continuous variable with a dynamic bin selector via slider or numeric input, classic automatic **Sturges** and **Scott** rules, bin-width calculation ($\Delta$), skewness, and an overlaid **Gaussian bell (theoretical Normal curve)** generated from its probability density function.
-- **Box-and-Whisker Plots (Boxplots with Tukey Whiskers):** Scientific 5-number summary representation (Min, Q1, Median, Q3, Max, Interquartile Range IQR and Mean). Lets you analyze the variable individually or **group it by categories** (e.g. Salary by Department or Sales by Campaign), interactive outlier detection, an optional point-dispersion layer (*jitter*), and a comparative statistics table.
-- **Interactive Tooltips:** Inspect the exact numeric values of each record directly on the charts.
+### Características
 
-### 5. Session Save and Restore (.stx)
-- **Statix Proprietary Session Format (.stx):** Save your whole project at any time with a single click. The `.stx` file stores:
-  - The current dataset with all its modifications (real-time cell edits, renamed columns, deleted columns, imputations and cleaning).
-  - The original backup dataset (allowing restoration at any time).
-  - Active filter rules.
-  - Chart and visualization settings.
-  - **Trained Machine Learning models:** Computed K-Means clusters, generated Decision Tree and Multiple Linear Regression equations.
-- **Fast Loading and Drag-and-Drop:** Open `.stx` files through the dedicated "Load Session" button, the import selector, or simply by dragging the file onto the application to resume analysis instantly.
+**Datos y formatos**
 
-## 💡 Future Ideas
+- Importación de `.csv`, `.txt`, `.xlsx`, `.xls`, `.json` y `.data`.
+- Detección automática de cabeceras, columnas numéricas y separadores, con selección manual (coma, tabulación, espacio…).
+- Exportación del estado actual a `.xlsx`, `.csv`, `.txt`, `.json` y `.data`.
 
-To keep expanding StatixPro's capabilities, the following features are planned:
-- **Parametric and Non-Parametric Hypothesis Tests:** Integration of statistical tests (Student's t for independent/paired samples, one-way ANOVA and Chi-square test).
-- **PDF Report Generation:** Direct export of complete analytical reports with vector charts and formatted descriptive tables for printing and presentations.
+**Limpieza y filtrado**
 
-## 🛠️ Technologies Used
+- **Imputación** de nulos en variables numéricas con media o mediana.
+- **Eliminación de filas** con valores nulos o celdas vacías.
+- **Borrado de columnas** desde la vista de dataset.
+- **Filtros dinámicos** con varias reglas numéricas o de texto (por ejemplo `Edad > 30`, `Departamento contiene "Ventas"`).
+- Edición de celdas y renombrado de columnas en tiempo real.
 
-- **Frontend:** React, TypeScript, Vite
-- **Desktop Packaging:** Electron, Electron-Builder
-- **Visualization:** Recharts
-- **Parsing and Processing:** PapaParse (CSVs), SheetJS / xlsx (Excel), Simple-Statistics (Regressions)
-- **UI:** Vanilla CSS with Glassmorphism design, Lucide React (icons)
+**Estadística y modelos**
 
-## 📦 Development and Build
+- **Estadística descriptiva** por variable numérica: N, media, mediana, desviación estándar, mínimo y máximo.
+- **Correlaciones de Pearson y Spearman** con mapa de calor interactivo (escala *coolwarm*).
+- **Regresión lineal simple** (`y = mx + b`) y **regresión múltiple** con pesos e intercepto.
+- **K-Means** con visualización 2D de los clústeres.
+- **Árboles de decisión** para clasificación, con visor SVG interactivo (arrastrar, zoom, plegar nodos).
+- **Selector de variables** para cada modelo, con limpieza al vuelo para evitar nulos.
 
-1. **Install:**
-   ```bash
-   npm install
-   ```
+**Visualización**
 
-2. **Start the Development Environment:**
-   *(Starts both the background Vite server and the native Electron window)*
-   ```bash
-   npm start
-   ```
+- Gráficos de dispersión, barras, líneas, área y circulares.
+- **Conteo automático**: al elegir una variable categórica en el eje Y, agrupa por X y cuenta.
+- **Histogramas** con *bins* ajustables, reglas de Sturges y Scott, asimetría y curva normal superpuesta.
+- **Diagramas de caja** con bigotes de Tukey, detección de *outliers*, *jitter* opcional y tabla comparativa; se pueden agrupar por categoría.
+- **Línea de tendencia** superpuesta en la dispersión y *tooltips* con valores exactos.
+- Renderizado diferido con `useDeferredValue` para mantener la interfaz fluida con miles de filas.
 
-3. **Build for Production (.exe):**
-   *(Prepares the binary to be packaged by tools such as Inno Setup)*
-   ```bash
-   npm run build:electron
-   ```
+**Sesiones**
 
-## License
+- Guardado y restauración en un archivo **`.stx`** que incluye dataset actual, dataset original de respaldo, filtros, configuración de gráficos y modelos entrenados.
+- Carga desde el botón **Cargar sesión**, el importador o arrastrando el archivo a la ventana.
 
-This project is licensed under the **GPL-3.0 License**.
-See the `LICENSE` file for details.
+### Tecnologías
 
-**Summary:**
-- ✅ Free use, including commercial purposes
-- ⚠️ If you distribute copies or modified versions, publish their source code under the same license (copyleft)
-- © Copyright (C) 2026 Alberto Ortiz
+| Capa | Herramientas |
+|---|---|
+| Interfaz | React 19, TypeScript, Vite |
+| Escritorio | Electron 44, electron-builder |
+| Gráficos | Recharts, visor SVG con `react-d3-tree` |
+| Datos | PapaParse, SheetJS (`xlsx`), `simple-statistics` |
+| Modelos | `ml-kmeans`, `ml-cart`, `ml-regression-multivariate-linear` |
+| Estilos | CSS propio (glassmorphism), Lucide React |
+
+### Requisitos
+
+- **Node.js 20** o superior y npm.
+- Windows para el empaquetado con `electron-builder` (la configuración incluida genera artefactos de Windows).
+
+### Desarrollo
+
+```bash
+git clone https://github.com/alberto2005-coder/statix-desktop-data-analyzer.git
+cd statix-desktop-data-analyzer
+npm install
+
+npm run dev            # Solo Vite (interfaz en el navegador)
+npm start              # Vite + ventana de Electron
+npm run lint           # oxlint
+```
+
+### Compilación
+
+```bash
+npm run build          # TypeScript + Vite → dist/
+npm run build:electron # build + electron-builder → release/
+```
+
+`installer.iss` es el script de **Inno Setup** para generar el instalador de Windows a partir de la salida de `electron-builder`.
+
+### Formato de sesión .stx
+
+El archivo `.stx` es un contenedor propio (JSON con extensión propia) que guarda:
+
+1. El dataset actual con ediciones, columnas renombradas o eliminadas e imputaciones.
+2. Una copia del dataset original para poder restaurarlo.
+3. Las reglas de filtrado activas.
+4. La configuración de gráficos.
+5. Los modelos entrenados: clústeres de K-Means, árbol de decisión y ecuaciones de regresión.
+
+> [!NOTE]
+> El formato es específico de Statix: no está pensado para intercambio con R, Python o Excel. Para llevarte los datos a otra herramienta, exporta a CSV, JSON o XLSX.
+
+### Flujo de trabajo típico
+
+1. Importa el archivo y revisa la detección de cabeceras y separador.
+2. Limpia: imputa o elimina nulos y descarta columnas que no necesites.
+3. Aplica filtros para acotar el análisis.
+4. Revisa la estadística descriptiva y el mapa de correlaciones.
+5. Prueba un modelo (regresión, K-Means o árbol) y examina sus resultados.
+6. Guarda la sesión en `.stx` o exporta los datos limpios.
+
+### Límites
+
+- **Todo cabe en memoria**: datasets muy grandes (cientos de miles de filas) pueden ralentizar la interfaz o agotar la memoria del proceso.
+- **Limpieza acotada**: la imputación solo cubre variables numéricas; las categóricas requieren tratamiento manual.
+- **Modelos didácticos**: K-Means, árboles y regresiones son implementaciones básicas, sin validación cruzada ni ajuste de hiperparámetros.
+- **Sin backend**: no hay colaboración, historial en la nube ni ejecución remota.
+- **`.stx` no es un formato estándar**: ábrelo solo con Statix.
+
+### Roadmap
+
+- Pruebas de hipótesis: t de Student, ANOVA de un factor y chi-cuadrado.
+- Exportación de informes PDF con gráficos vectoriales y tablas.
+
+### Licencia
+
+**GNU General Public License v3.0 (GPL-3.0)** — consulta [LICENSE](LICENSE). Uso libre, incluido el comercial; las versiones modificadas deben publicarse bajo la misma licencia. © 2026 Alberto Ortiz.
+
+---
+
+## English
+
+### Table of contents
+
+- [Overview](#overview)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Requirements](#requirements)
+- [Development](#development)
+- [Building](#building)
+- [The .stx session format](#the-stx-session-format)
+- [Typical workflow](#typical-workflow)
+- [Limits](#limits)
+- [Roadmap](#roadmap)
+- [License](#license)
+
+### Overview
+
+**Statix Data Analyzer** is a desktop app to **import, clean, analyse and visualise data** without writing code. Built with **React, TypeScript, Vite and Electron**, it combines descriptive statistics, correlations, regression and basic machine learning in a glassmorphism interface.
+
+All processing happens on your machine: no server, accounts or data uploads.
+
+### Features
+
+**Data and formats**
+
+- Import `.csv`, `.txt`, `.xlsx`, `.xls`, `.json` and `.data`.
+- Automatic detection of headers, numeric columns and separators, with manual override (comma, tab, space…).
+- Export the current state to `.xlsx`, `.csv`, `.txt`, `.json` and `.data`.
+
+**Cleaning and filtering**
+
+- **Imputation** of nulls in numeric variables using the mean or median.
+- **Row removal** for rows with nulls or empty cells.
+- **Column deletion** from the dataset view.
+- **Dynamic filters** with multiple numeric or text rules (e.g. `Age > 30`, `Department contains "Sales"`).
+- In-place cell editing and column renaming.
+
+**Statistics and models**
+
+- **Descriptive statistics** per numeric variable: N, mean, median, standard deviation, min and max.
+- **Pearson and Spearman correlations** with an interactive heatmap (*coolwarm* scale).
+- **Simple linear regression** (`y = mx + b`) and **multiple regression** with weights and intercept.
+- **K-Means** with a 2D cluster visualisation.
+- **Decision trees** for classification, with an interactive SVG viewer (drag, zoom, collapse nodes).
+- **Variable selector** per model, with on-the-fly cleaning to avoid nulls.
+
+**Visualisation**
+
+- Scatter, bar, line, area and pie charts.
+- **Automatic counting**: picking a categorical variable on the Y axis groups by X and counts.
+- **Histograms** with adjustable bins, Sturges and Scott rules, skewness and an overlaid normal curve.
+- **Box plots** with Tukey whiskers, outlier detection, optional jitter and a comparison table; can be grouped by category.
+- **Trend line** overlaid on the scatter plot and tooltips with exact values.
+- Deferred rendering with `useDeferredValue` to keep the UI fluid with thousands of rows.
+
+**Sessions**
+
+- Save and restore a **`.stx`** file containing the current dataset, the original backup, filters, chart settings and trained models.
+- Load it from **Load session**, the importer or by dragging the file onto the window.
+
+### Tech stack
+
+| Layer | Tools |
+|---|---|
+| UI | React 19, TypeScript, Vite |
+| Desktop | Electron 44, electron-builder |
+| Charts | Recharts, SVG viewer via `react-d3-tree` |
+| Data | PapaParse, SheetJS (`xlsx`), `simple-statistics` |
+| Models | `ml-kmeans`, `ml-cart`, `ml-regression-multivariate-linear` |
+| Styling | Custom CSS (glassmorphism), Lucide React |
+
+### Requirements
+
+- **Node.js 20** or later and npm.
+- Windows for packaging with `electron-builder` (the included config produces Windows artefacts).
+
+### Development
+
+```bash
+git clone https://github.com/alberto2005-coder/statix-desktop-data-analyzer.git
+cd statix-desktop-data-analyzer
+npm install
+
+npm run dev            # Vite only (UI in the browser)
+npm start              # Vite + Electron window
+npm run lint           # oxlint
+```
+
+### Building
+
+```bash
+npm run build          # TypeScript + Vite → dist/
+npm run build:electron # build + electron-builder → release/
+```
+
+`installer.iss` is the **Inno Setup** script that turns the `electron-builder` output into a Windows installer.
+
+### The .stx session format
+
+`.stx` is a custom container (JSON with its own extension) that stores:
+
+1. The current dataset with edits, renamed or deleted columns and imputations.
+2. A copy of the original dataset for restoration.
+3. Active filter rules.
+4. Chart configuration.
+5. Trained models: K-Means clusters, decision tree and regression equations.
+
+> [!NOTE]
+> The format is Statix-specific: it is not meant for exchange with R, Python or Excel. To move data elsewhere, export to CSV, JSON or XLSX.
+
+### Typical workflow
+
+1. Import the file and check header and separator detection.
+2. Clean: impute or drop nulls and discard unneeded columns.
+3. Apply filters to narrow the analysis.
+4. Review descriptive statistics and the correlation heatmap.
+5. Try a model (regression, K-Means or tree) and inspect the results.
+6. Save the session as `.stx` or export the cleaned data.
+
+### Limits
+
+- **Everything fits in memory**: very large datasets (hundreds of thousands of rows) can slow the UI down or exhaust the process memory.
+- **Scoped cleaning**: imputation only covers numeric variables; categorical ones need manual handling.
+- **Teaching-grade models**: K-Means, trees and regressions are basic implementations, with no cross-validation or hyperparameter tuning.
+- **No backend**: no collaboration, cloud history or remote execution.
+- **`.stx` is not a standard format**: open it with Statix only.
+
+### Roadmap
+
+- Hypothesis tests: Student's t, one-way ANOVA and chi-square.
+- PDF report export with vector charts and tables.
+
+### License
+
+**GNU General Public License v3.0 (GPL-3.0)** — see [LICENSE](LICENSE). Free use, including commercial; modified versions must be published under the same license. © 2026 Alberto Ortiz.
